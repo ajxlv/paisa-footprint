@@ -285,3 +285,15 @@ def _to_bool(text: str, notes: list[str], element: str) -> bool | None:
 def _taxonomy(root: etree._Element) -> str | None:
     ref = root.find(f"{{{LINK}}}schemaRef")
     return ref.get(f"{{{XLINK}}}href") if ref is not None else None
+
+
+def parse_directory(directory: str | Path) -> tuple[list[BrsrFiling], dict[str, str]]:
+    """Parse every `*.xml` in a directory. Failures come back with a reason; none are dropped."""
+    filings: list[BrsrFiling] = []
+    failures: dict[str, str] = {}
+    for path in sorted(Path(directory).glob("*.xml")):
+        try:
+            filings.append(parse_file(path))
+        except (BrsrParseError, etree.XMLSyntaxError, ValueError) as exc:
+            failures[path.name] = f"{type(exc).__name__}: {exc}"
+    return filings, failures
