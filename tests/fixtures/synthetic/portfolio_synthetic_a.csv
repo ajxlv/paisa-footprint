@@ -1,0 +1,8 @@
+# ILLUSTRATIVE, NOT REAL MARKET DATA. Synthetic portfolio A: 5 holdings, all covered, ₹30 crore.
+# Hand-worked in docs/worked-example.md.
+isin_or_symbol,value_inr
+INE584A01023,60000000
+INE040A01034,150000000
+INE280A01028,30000000
+INE188A01015,50000000
+INE516A01017,10000000

@@ -8,7 +8,14 @@ import typer
 
 from pf_core.brsr.parser import parse_directory, parse_file
 from pf_core.brsr.validators import RULE_DESCRIPTIONS, validate
-from pf_core.snapshot import build_snapshot
+from pf_core.pcaf.engine import compute_portfolio
+from pf_core.pcaf.inputs import (
+    company_index,
+    emissions_from_snapshot,
+    load_evic_csv,
+    load_portfolio_csv,
+)
+from pf_core.snapshot import build_snapshot, load_snapshot
 
 app = typer.Typer(
     help="Paisa Footprint: financed emissions from BRSR filings.", no_args_is_help=True
@@ -80,6 +87,42 @@ def build_snapshot_cmd(
     typer.echo(f"Snapshot written to {out}")
     for key, value in summary.model_dump().items():
         typer.echo(f"  {key:<24} {value}")
+
+
+@app.command()
+def compute(
+    portfolio: Path = typer.Option(
+        ..., exists=True, dir_okay=False, help="isin_or_symbol,value_inr"
+    ),
+    evic: Path = typer.Option(..., exists=True, dir_okay=False, help="company_key,evic_inr,..."),
+    snapshot: Path = typer.Option(Path("data/snapshots/fixtures"), exists=True, file_okay=False),
+    out: Path = typer.Option(Path("portfolio_result.json"), help="JSON output path."),
+) -> None:
+    """Compute PCAF financed emissions for a portfolio CSV."""
+    snap = load_snapshot(snapshot)
+    holdings = load_portfolio_csv(portfolio, company_index(snap))
+    result = compute_portfolio(holdings, emissions_from_snapshot(snap), load_evic_csv(evic))
+    out.write_text(result.model_dump_json(indent=2), encoding="utf-8")
+
+    if result.contains_illustrative_inputs:
+        typer.echo("!! ILLUSTRATIVE INPUTS: results use made-up EVIC, not real market data !!")
+    typer.echo(f"{'company':<46} {'value ₹':>16} {'attribution':>12} {'financed t':>12} DQ")
+    for h in result.holdings:
+        typer.echo(
+            f"{h.company_name[:46]:<46} {h.value_inr:>16,.0f} {h.attribution:>12.6g} "
+            f"{h.financed_emissions_t:>12,.4f} {h.pcaf_data_quality}"
+        )
+    for u in result.uncovered:
+        typer.echo(f"UNCOVERED {u.isin_or_symbol} (₹{u.value_inr:,.0f}): {u.reason}")
+    typer.echo(f"Financed emissions   {result.financed_emissions_t:,.4f} tCO2e")
+    typer.echo(f"Coverage             {result.coverage_pct:.1f}% of ₹{result.total_value_inr:,.0f}")
+    if result.carbon_footprint_t_per_crore is not None:
+        typer.echo(f"Carbon footprint     {result.carbon_footprint_t_per_crore:,.4f} tCO2e / ₹ cr")
+    if result.waci_t_per_crore_revenue is not None:
+        typer.echo(f"WACI                 {result.waci_t_per_crore_revenue:,.4f} tCO2e / ₹ cr rev")
+    if result.pcaf_data_quality is not None:
+        typer.echo(f"PCAF data quality    {result.pcaf_data_quality:.2f}")
+    typer.echo(f"JSON written to {out}")
 
 
 if __name__ == "__main__":

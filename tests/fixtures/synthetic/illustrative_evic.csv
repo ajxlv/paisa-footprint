@@ -1,0 +1,20 @@
+# ILLUSTRATIVE, NOT REAL MARKET DATA.
+# Made-up EVIC (enterprise value including cash) for the 15 fixture companies that report Scope 1+2.
+# Round numbers in a plausible range, chosen so the PCAF arithmetic is easy to check by hand.
+# Real EVIC (market cap at fiscal year end + total debt) arrives in week 2; do not cite these values.
+company_key,company_name,evic_inr,evic_source,evic_is_illustrative
+INE584A01023,NMDC Limited,600000000000,illustrative (₹60000 crore),true
+INE040A01034,HDFC Bank Limited,15000000000000,illustrative (₹1500000 crore),true
+INE280A01028,Titan Company Limited,3000000000000,illustrative (₹300000 crore),true
+INE188A01015,FERTILIZERS AND CHEMICALS TRAVANCORE LIMITED,500000000000,illustrative (₹50000 crore),true
+INE516A01017,Uflex Ltd,100000000000,illustrative (₹10000 crore),true
+INE255D01024,GULSHAN POLYOLS LIMITED,15000000000,illustrative (₹1500 crore),true
+INE177A01018,Ingersoll-Rand (India) Limited,150000000000,illustrative (₹15000 crore),true
+INE665L01035,Varroc Engineering Limited,80000000000,illustrative (₹8000 crore),true
+INE689W01016,PRINCE PIPES AND FITTINGS LIMITED,50000000000,illustrative (₹5000 crore),true
+INE793A01012,Accelya Solutions India Limited,25000000000,illustrative (₹2500 crore),true
+INE055S01018,Cyient DLM Limited,40000000000,illustrative (₹4000 crore),true
+INE596F01018,PTC Industries Limited,200000000000,illustrative (₹20000 crore),true
+INE184H01027,Everest Kanto Cylinder Limited,20000000000,illustrative (₹2000 crore),true
+INE942C01045,GUJARAT THEMIS BIOSYN LIMITED,30000000000,illustrative (₹3000 crore),true
+INE083B01024,THEMIS MEDICARE LIMITED,20000000000,illustrative (₹2000 crore),true
