@@ -8,6 +8,7 @@ import typer
 
 from pf_core.brsr.parser import parse_directory, parse_file
 from pf_core.brsr.validators import RULE_DESCRIPTIONS, validate
+from pf_core.snapshot import build_snapshot
 
 app = typer.Typer(
     help="Paisa Footprint: financed emissions from BRSR filings.", no_args_is_help=True
@@ -67,6 +68,18 @@ def validate_cmd(
     for rule, description in RULE_DESCRIPTIONS.items():
         typer.echo(f"{rule:<5} {counts[rule]:>6}  {description}")
     typer.echo(f"Report written to {out}")
+
+
+@app.command("build-snapshot")
+def build_snapshot_cmd(
+    input: Path = typer.Option(..., "--input", exists=True, file_okay=False),
+    out: Path = typer.Option(Path("data/snapshots/fixtures"), "--out"),
+) -> None:
+    """Parse, validate and normalise filings into a Parquet snapshot."""
+    summary = build_snapshot(input, out)
+    typer.echo(f"Snapshot written to {out}")
+    for key, value in summary.model_dump().items():
+        typer.echo(f"  {key:<24} {value}")
 
 
 if __name__ == "__main__":
