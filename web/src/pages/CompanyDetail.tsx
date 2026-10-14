@@ -4,7 +4,7 @@ import { api, type CompanyYear } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { formatINR, formatNumber, formatSig } from '../lib/format';
 import { RULE_TEXT, TRANSFORM_HINT } from '../lib/rules';
-import { useChartColors } from '../lib/theme';
+import { useChartColors } from '../lib/themeContext';
 import { ErrorBox, Loading, QualityBadge, SeverityBadge, StatTile } from '../components/ui';
 
 const FIELD_LABELS: Record<string, string> = {
@@ -96,7 +96,7 @@ function YearsSection({ years }: { years: CompanyYear[] }) {
     <section aria-labelledby="years-h" className="grid gap-6 lg:grid-cols-2">
       <div className="min-w-0">
         <h2 id="years-h" className="mb-3 text-lg font-semibold">Both filed years</h2>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Both filed years, scrollable">
           <table className="table-base">
             <thead>
               <tr>
@@ -179,8 +179,14 @@ function ProvenancePanel({ years }: { years: CompanyYear[] }) {
       </p>
       <div className="space-y-6">
         {years.map((y) => (
-          <div key={y.fiscal_year} className="overflow-x-auto rounded-lg border border-stone-200 dark:border-stone-800">
-            <table className="table-base min-w-[980px]">
+          <div
+            key={y.fiscal_year}
+            className="overflow-x-auto rounded-lg border border-stone-200 dark:border-stone-800"
+            tabIndex={0}
+            role="region"
+            aria-label={`Provenance for ${y.fiscal_year}, scrollable`}
+          >
+            <table className="table-base min-w-[880px]">
               <caption className="px-3 pt-3 text-left text-sm font-medium">{y.fiscal_year}</caption>
               <thead>
                 <tr>
@@ -197,7 +203,7 @@ function ProvenancePanel({ years }: { years: CompanyYear[] }) {
                 {Object.entries(y.provenance).map(([field, p]) => (
                   <tr key={field}>
                     <th scope="row" className="text-left font-normal">{FIELD_LABELS[field] ?? field}</th>
-                    <td className="font-mono text-xs">{p.element}</td>
+                    <td className="max-w-[15rem] break-all font-mono text-xs">{p.element}</td>
                     <td className="whitespace-nowrap text-xs">
                       {p.context_ref}
                       <span className="block text-stone-500">{p.period_start ? `${p.period_start} to ` : ''}{p.period_end}</span>

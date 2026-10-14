@@ -36,7 +36,12 @@ from pf_core.pcaf.inputs import (
 from pf_core.pcaf.models import CompanyFinancials, Holding, PortfolioResult
 from pf_core.snapshot import Snapshot, coverage_stats, load_snapshot
 
-DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8080"]
+DEV_ORIGINS = [
+    "http://localhost:5173",  # vite dev
+    "http://127.0.0.1:5173",
+    "http://localhost:4173",  # vite preview
+    "http://localhost:8080",  # docker compose web
+]
 
 # Real fixture examples shown on the data-quality page, one per rule that fires.
 RULE_EXAMPLES: dict[str, str] = {

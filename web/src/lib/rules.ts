@@ -22,12 +22,17 @@ export const RULE_TEXT: Record<string, { title: string; plain: string }> = {
   V1: {
     title: '"MtCO2e" read as metric tonnes',
     plain:
-      'Strictly, "Mt" means megatonnes (a million tonnes). The values make clear filers mean metric tonnes, so we read them as tonnes and flag it. If that reading implies more than 50,000 tCO2e per ₹ crore of revenue, it becomes a warning.',
+      'Strictly, "Mt" means megatonnes (a million tonnes). The values make clear filers mean metric tonnes, so we read them as tonnes and flag it. If that reading implies more than 50,000 tCO2e per ₹ crore of trustworthy revenue, it becomes a warning.',
   },
   V2: {
     title: 'Revenue at the wrong scale',
     plain:
-      'A listed company cannot have revenue under ₹10 lakh. This is almost always ₹ crore typed into a rupee field, which makes the reported intensity wrong by a factor of about 10 million. We flag it, keep the filed number, and leave the company out of WACI. We do not rescale it.',
+      'A listed company cannot have revenue under ₹10 lakh. This is almost always ₹ crore typed into a rupee field, which makes the reported intensity wrong by a factor of about 10 million. When the other revenue field cannot confirm the scale, we flag it, keep the filed number, and leave the company out of WACI.',
+  },
+  'V2-fix': {
+    title: 'Revenue scale corrected',
+    plain:
+      'Every filing reports revenue twice. When one field is exactly 1 lakh or 1 crore times the other, and only one reading makes them agree within 15%, the slip is corrected. The correction is shown with a "Corrected" chip, still counts as a problem, and caps WACI data quality at 2.',
   },
   V3: {
     title: 'Two revenue figures disagree',

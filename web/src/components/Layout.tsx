@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useState } from 'react';
-import { useTheme } from '../lib/theme';
+import { useTheme } from '../lib/themeContext';
 
 const NAV = [
   { to: '/companies', label: 'Companies' },
@@ -67,8 +67,7 @@ export function Layout() {
       <footer className="border-t border-stone-200 py-6 text-sm text-stone-500 dark:border-stone-800 dark:text-stone-400">
         <div className="container-page flex flex-col justify-between gap-2 sm:flex-row">
           <p>Data: company BRSR filings on NSE · Method: PCAF · Open source</p>
-          {/* Repository URL to be filled in once the repo is public. */}
-          <a href="#" className="underline" aria-label="GitHub repository (link coming soon)">
+          <a href="https://github.com/ajxlv/paisa-footprint" className="underline" rel="noreferrer">
             GitHub
           </a>
         </div>

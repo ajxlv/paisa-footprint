@@ -3,7 +3,7 @@ import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, 
 import { api, type RuleSummary } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { RULE_KIND, RULE_TEXT } from '../lib/rules';
-import { useChartColors } from '../lib/theme';
+import { useChartColors } from '../lib/themeContext';
 import { ErrorBox, Loading, PageHeader, StatTile } from '../components/ui';
 import { formatPct } from '../lib/format';
 
