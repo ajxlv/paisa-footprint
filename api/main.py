@@ -11,6 +11,7 @@ Environment:
     PF_CORS_ORIGINS   extra comma-separated CORS origins
 """
 
+import json
 import os
 from functools import cached_property
 from pathlib import Path
@@ -21,6 +22,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from pf_core.brsr.validators import RULE_DESCRIPTIONS
+from pf_core.funds.adapters import GenericExcelAdapter
+from pf_core.funds.ingest import RANKINGS_FILE, rank_snapshot_funds
+from pf_core.funds.ranking import FundResult
+from pf_core.funds.validators import validate_fund
 from pf_core.pcaf.engine import compute_portfolio
 from pf_core.pcaf.inputs import (
     company_index,
@@ -160,6 +165,12 @@ class DemoPortfolio(BaseModel):
 
 class Methodology(BaseModel):
     markdown: str
+
+
+class FundsResponse(BaseModel):
+    available: bool
+    snapshot_dir: str
+    funds: list[FundResult]
 
 
 class _State:
@@ -316,6 +327,32 @@ def create_app(
             )
         return result
 
+    @app.get("/funds", response_model=FundsResponse)
+    def funds() -> FundsResponse:
+        """Real fund rankings from the snapshot, if `pf rank-funds` has been run. Illustrative
+        funds are never returned here: they live under /demo/funds so the two never mix."""
+        real = [f for f in _rankings(state.snapshot_dir) if not f.illustrative]
+        return FundsResponse(available=bool(real), snapshot_dir=str(state.snapshot_dir), funds=real)
+
+    @app.get("/funds/{key}", response_model=FundResult)
+    def fund(key: str) -> FundResult:
+        for f in _rankings(state.snapshot_dir):
+            if f.fund_key == key and not f.illustrative:
+                return f
+        raise HTTPException(404, f"No fund with key {key!r}")
+
+    @app.get("/demo/funds", response_model=list[FundResult])
+    def demo_funds() -> list[FundResult]:
+        """ILLUSTRATIVE funds: the synthetic AMC workbook run through the real engine."""
+        return _demo_fund_results(state, demo)
+
+    @app.get("/demo/funds/{key}", response_model=FundResult)
+    def demo_fund(key: str) -> FundResult:
+        for f in _demo_fund_results(state, demo):
+            if f.fund_key == key:
+                return f
+        raise HTTPException(404, f"No illustrative fund with key {key!r}")
+
     @app.get("/methodology", response_model=Methodology)
     def methodology() -> Methodology:
         path = docs / "METHODOLOGY.md"
@@ -324,6 +361,27 @@ def create_app(
         return Methodology(markdown=path.read_text(encoding="utf-8"))
 
     return app
+
+
+def _rankings(snapshot_dir: Path) -> list[FundResult]:
+    path = snapshot_dir / RANKINGS_FILE
+    if not path.exists():
+        return []
+    return [FundResult.model_validate(r) for r in json.loads(path.read_text(encoding="utf-8"))]
+
+
+def _demo_fund_results(state: "_State", demo: Path) -> list[FundResult]:
+    workbook = demo / "amc_portfolio_synthetic.xlsx"
+    if not workbook.exists():
+        raise HTTPException(404, "Synthetic AMC workbook not found")
+    portfolios, issues = [], []
+    for portfolio in GenericExcelAdapter("Illustrative AMC").parse(workbook):
+        merged, found = validate_fund(portfolio)
+        portfolios.append(merged)
+        issues.extend(found)
+    state.snapshot  # noqa: B018 - raises a clear 503 if there is no snapshot
+    financials = load_evic_csv(demo / "illustrative_evic.csv")
+    return rank_snapshot_funds(state.snapshot_dir, financials, portfolios, issues)
 
 
 def _summary(row: dict[str, Any]) -> CompanySummary:

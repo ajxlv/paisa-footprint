@@ -194,3 +194,46 @@ export const api = {
       body: JSON.stringify({ holdings, evic }),
     }),
 };
+
+export interface FundIssue {
+  fund_key: string;
+  rule_id: string;
+  severity: string;
+  field: string;
+  message: string;
+}
+
+export interface FundResult {
+  fund_key: string;
+  amc: string;
+  scheme_name: string;
+  as_of_date: string | null;
+  source_file: string;
+  illustrative: boolean;
+  status: 'ranked' | 'insufficient coverage' | 'no equity holdings';
+  rank: number | null;
+  equity_value_inr: number;
+  non_equity_value_inr: number;
+  coverage_pct: number;
+  carbon_footprint_t_per_crore: number | null;
+  waci_t_per_crore_revenue: number | null;
+  financed_emissions_t: number;
+  pcaf_data_quality: number | null;
+  contains_illustrative_inputs: boolean;
+  top_contributors: HoldingResult[];
+  uncovered: UncoveredHolding[];
+  issues: FundIssue[];
+}
+
+export interface FundsResponse {
+  available: boolean;
+  snapshot_dir: string;
+  funds: FundResult[];
+}
+
+export const fundsApi = {
+  funds: () => request<FundsResponse>('/funds'),
+  fund: (key: string) => request<FundResult>(`/funds/${encodeURIComponent(key)}`),
+  demoFunds: () => request<FundResult[]>('/demo/funds'),
+  demoFund: (key: string) => request<FundResult>(`/demo/funds/${encodeURIComponent(key)}`),
+};

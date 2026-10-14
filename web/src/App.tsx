@@ -7,6 +7,7 @@ import { Portfolio } from './pages/Portfolio';
 import { DataQuality } from './pages/DataQuality';
 import { Methodology } from './pages/Methodology';
 import { Funds } from './pages/Funds';
+import { FundDetail } from './pages/FundDetail';
 import { NotFound } from './pages/NotFound';
 
 export function App() {
@@ -20,6 +21,8 @@ export function App() {
         <Route path="data-quality" element={<DataQuality />} />
         <Route path="methodology" element={<Methodology />} />
         <Route path="funds" element={<Funds />} />
+        <Route path="funds/illustrative/:key" element={<FundDetail illustrative />} />
+        <Route path="funds/:key" element={<FundDetail />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
