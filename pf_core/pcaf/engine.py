@@ -25,7 +25,7 @@ from pf_core.pcaf.models import (
     PortfolioResult,
     UncoveredHolding,
 )
-from pf_core.pcaf.quality import holding_score, portfolio_score
+from pf_core.pcaf.quality import holding_score, portfolio_score, waci_score
 
 INR_PER_CRORE = 1e7
 SCOPE_FIELDS = {"scope1", "scope2", "scope1_t", "scope2_t", "scope1+scope2"}
@@ -57,7 +57,7 @@ def compute_portfolio(
     """Financed emissions, footprint, WACI, coverage and data quality for one portfolio."""
     covered: list[HoldingResult] = []
     uncovered: list[UncoveredHolding] = []
-    waci_terms: list[tuple[float, float]] = []
+    waci_terms: list[tuple[float, float, int]] = []
     illustrative = False
 
     for holding in holdings:
@@ -66,8 +66,9 @@ def compute_portfolio(
         if fin is not None and fin.evic_is_illustrative:
             illustrative = True
         waci_intensity, waci_reason = _waci_intensity(company)
-        if waci_intensity is not None:
-            waci_terms.append((holding.value_inr, waci_intensity))
+        if waci_intensity is not None and company is not None:
+            dq = waci_score(company.assured, company.revenue_corrected)
+            waci_terms.append((holding.value_inr, waci_intensity, dq))
         reason = _uncovered_reason(holding, company, fin)
         if reason is not None:
             uncovered.append(_uncovered(holding, reason))
@@ -145,7 +146,13 @@ def _holding_result(
         intensity_t_per_crore_revenue=waci_intensity,
         in_waci=waci_intensity is not None,
         waci_exclusion_reason=waci_reason,
+        revenue_corrected=company.revenue_corrected,
         pcaf_data_quality=holding_score(company.assured),
+        waci_data_quality=(
+            waci_score(company.assured, company.revenue_corrected)
+            if waci_intensity is not None
+            else None
+        ),
         formula=(
             f"attribution = {holding.value_inr:,.0f} / {fin.evic_inr:,.0f} = {share:.6g}; "
             f"financed = {share:.6g} × ({company.scope1_t:,.2f} + {company.scope2_t:,.2f}) "
@@ -168,15 +175,15 @@ def _totals(
     holdings: list[Holding],
     covered: list[HoldingResult],
     uncovered: list[UncoveredHolding],
-    waci_terms: list[tuple[float, float]],
+    waci_terms: list[tuple[float, float, int]],
     illustrative: bool,
 ) -> PortfolioResult:
     total_value = sum(h.value_inr for h in holdings)
     covered_value = sum(h.value_inr for h in covered)
     financed = sum(h.financed_emissions_t for h in covered)
-    waci_value = sum(value for value, _ in waci_terms)
+    waci_value = sum(value for value, _, _ in waci_terms)
     waci = (
-        sum(value / waci_value * intensity for value, intensity in waci_terms)
+        sum(value / waci_value * intensity for value, intensity, _ in waci_terms)
         if waci_value > 0
         else None
     )
@@ -192,6 +199,7 @@ def _totals(
         waci_value_inr=waci_value,
         waci_coverage_pct=waci_value / total_value * 100 if total_value > 0 else 0.0,
         pcaf_data_quality=portfolio_score([(h.value_inr, h.pcaf_data_quality) for h in covered]),
+        waci_data_quality=portfolio_score([(value, dq) for value, _, dq in waci_terms]),
         holdings=covered,
         uncovered=uncovered,
         contains_illustrative_inputs=illustrative,

@@ -63,7 +63,11 @@ def test_validation_summary(client: TestClient) -> None:
     assert body["issues_info"] == 26
     assert body["companies_with_problems"] == 6
     rules = {r["rule_id"]: r for r in body["rules"]}
-    assert rules["V2"]["companies"] == 2
+    # Run 2: Gujarat Themis FY26 and Everest Kanto are corrected (V2-fix); Gujarat Themis FY25
+    # cannot be, so V2 itself still fires once.
+    assert rules["V2"]["companies"] == 1
+    assert rules["V2-fix"]["companies"] == 2
+    assert rules["V2"]["issues"] + rules["V2-fix"]["issues"] == 4
     assert rules["V10"]["issues"] == 0
     assert (rules["V1"]["problems"], rules["V1"]["info"]) == (0, 20)
     assert (rules["V3"]["problems"], rules["V3"]["info"]) == (8, 0)

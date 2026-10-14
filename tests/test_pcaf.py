@@ -77,6 +77,34 @@ def test_worked_example_portfolio_a(snapshot: Snapshot) -> None:
     assert result.contains_illustrative_inputs is True
 
 
+# Hand-derived in docs/worked-example-b.md (run 2, with the V2-fix revenue correction).
+WORKED_B = {
+    "financed_emissions_t": 45.228640153333333,
+    "carbon_footprint_t_per_crore": 5.9511368622807018,
+    "waci_t_per_crore_revenue": 15.331996449270470,
+    "pcaf_data_quality": 51 / 38,
+    "waci_data_quality": 51 / 38,
+    "themis_intensity": 18716.91 / 165.82,
+}
+
+
+def test_worked_example_portfolio_b(snapshot: Snapshot) -> None:
+    result = run(snapshot, "portfolio_synthetic_b.csv")
+    rel = 1e-9
+    for key in (
+        "financed_emissions_t",
+        "carbon_footprint_t_per_crore",
+        "waci_t_per_crore_revenue",
+        "pcaf_data_quality",
+        "waci_data_quality",
+    ):
+        assert getattr(result, key) == pytest.approx(WORKED_B[key], rel=rel), key
+    themis = next(h for h in result.holdings if h.company_key == "INE942C01045")
+    assert themis.intensity_t_per_crore_revenue == pytest.approx(
+        WORKED_B["themis_intensity"], rel=rel
+    )
+
+
 def test_portfolio_b_exclusions(snapshot: Snapshot) -> None:
     result = run(snapshot, "portfolio_synthetic_b.csv")
     reasons = {u.isin_or_symbol: u.reason for u in result.uncovered}
@@ -84,12 +112,14 @@ def test_portfolio_b_exclusions(snapshot: Snapshot) -> None:
     assert "V9" in reasons["RAJESHEXPO"]
     assert "V7" in reasons["INE000000000"]
     themis = next(h for h in result.holdings if h.company_key == "INE942C01045")
-    assert themis.in_waci is False
-    assert "V2" in (themis.waci_exclusion_reason or "")
+    # Run 2: revenue corrected by V2-fix, so Gujarat Themis is now in WACI, flagged.
+    assert themis.in_waci is True
+    assert themis.revenue_corrected is True
+    assert themis.waci_data_quality == 2
     assert result.total_value_inr == 90_000_000
     assert result.covered_value_inr == 76_000_000
     assert result.coverage_pct == pytest.approx(76 / 90 * 100)
-    assert result.waci_value_inr == 70_000_000  # covered minus Gujarat Themis
+    assert result.waci_value_inr == 76_000_000  # run 2: every covered holding is in WACI
 
 
 def test_portfolio_c_single_holding(snapshot: Snapshot) -> None:

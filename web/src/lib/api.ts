@@ -28,6 +28,8 @@ export interface ValueProvenance {
   unit_raw: string | null;
   raw_value: string;
   transformation: string;
+  value_used: number | null;
+  corrected: boolean;
 }
 
 export interface CompanyYear {
@@ -39,6 +41,11 @@ export interface CompanyYear {
   scope2_t: number | null;
   revenue_inr: number | null;
   total_revenue_inr: number | null;
+  revenue_inr_resolved: number | null;
+  total_revenue_inr_resolved: number | null;
+  revenue_resolution: 'as_filed' | 'inferred_crore' | 'inferred_lakh' | 'unresolved';
+  revenue_note: string;
+  revenue_corrected: boolean;
   intensity_reported_per_inr: number | null;
   intensity_t_per_crore: number | null;
   assured: boolean | null;
@@ -130,7 +137,9 @@ export interface HoldingResult {
   intensity_t_per_crore_revenue: number | null;
   in_waci: boolean;
   waci_exclusion_reason: string | null;
+  revenue_corrected: boolean;
   pcaf_data_quality: number;
+  waci_data_quality: number | null;
   formula: string;
 }
 
@@ -151,6 +160,7 @@ export interface PortfolioResult {
   waci_value_inr: number;
   waci_coverage_pct: number;
   pcaf_data_quality: number | null;
+  waci_data_quality: number | null;
   holdings: HoldingResult[];
   uncovered: UncoveredHolding[];
   contains_illustrative_inputs: boolean;

@@ -1,6 +1,6 @@
 /** Mocked API payloads for component tests. SYNTHETIC: illustrative values, not real market data. */
 import { vi } from "vitest";
-import type { CompanySummary, DemoPortfolio, ValidationSummary } from '../lib/api';
+import type { CompanyDetail, CompanySummary, DemoPortfolio, ValidationSummary } from '../lib/api';
 
 export const companiesSynthetic: CompanySummary[] = [
   {
@@ -53,4 +53,30 @@ export const validationSummarySynthetic: ValidationSummary = {
   quality_flags: { ok: 11, review: 4, excluded: 5 },
   rules: [],
   excluded: [],
+};
+
+/** A company detail payload with one V2-fix correction (values shaped like the fixture's). */
+export const companyDetailCorrectedSynthetic: CompanyDetail = {
+  summary: companiesSynthetic[2],
+  source_file: 'BRSR_synthetic.xml',
+  cin: null,
+  exclusion_reason: null,
+  issues: [],
+  years: [
+    {
+      fiscal_year: 'FY2025-26', is_current: true, period_start: '2025-04-01', period_end: '2026-03-31',
+      scope1_t: 12487.99, scope2_t: 6228.92, revenue_inr: 165.82, total_revenue_inr: 1658227981,
+      revenue_inr_resolved: 1658200000, total_revenue_inr_resolved: 1658227981, revenue_resolution: 'inferred_crore',
+      revenue_note: 'RevenueFromOperations 165.82 interpreted as ₹ crore', revenue_corrected: true,
+      intensity_reported_per_inr: 112.87, intensity_t_per_crore: 112.87, assured: null, quality_flag: 'review',
+      issues: ['V2-fix'],
+      provenance: {
+        revenue_from_operations_inr: {
+          element: 'RevenueFromOperations', context_ref: 'DCYMain', period_start: '2025-04-01', period_end: '2026-03-31',
+          unit_raw: 'iso4217:INR', raw_value: '165.82', transformation: 'corrected ×1e+07 (rule V2-fix)',
+          value_used: 1658200000, corrected: true,
+        },
+      },
+    },
+  ],
 };

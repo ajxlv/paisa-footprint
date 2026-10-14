@@ -33,6 +33,8 @@ class CompanyEmissions(BaseModel):
     assured: bool | None
     fiscal_year: str
     quality_flag: Literal["ok", "review", "excluded"]
+    revenue_corrected: bool = False
+    revenue_resolution: str = "as_filed"
     error_fields: list[str] = []
     issues: list[str] = []
     provenance: dict[str, Any] = {}
@@ -57,7 +59,9 @@ class HoldingResult(BaseModel):
     intensity_t_per_crore_revenue: float | None
     in_waci: bool
     waci_exclusion_reason: str | None
+    revenue_corrected: bool = False
     pcaf_data_quality: int
+    waci_data_quality: int | None = None
     formula: str
     provenance: dict[str, Any] = {}
 
@@ -83,6 +87,7 @@ class PortfolioResult(BaseModel):
     waci_value_inr: float
     waci_coverage_pct: float
     pcaf_data_quality: float | None
+    waci_data_quality: float | None = None
     holdings: list[HoldingResult]
     uncovered: list[UncoveredHolding]
     contains_illustrative_inputs: bool

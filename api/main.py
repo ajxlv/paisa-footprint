@@ -37,8 +37,12 @@ DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localho
 RULE_EXAMPLES: dict[str, str] = {
     "V1": "Titan Company Limited files Scope 1 = 3,878 'MtCO2e'; 3.9 billion tonnes would be "
     "absurd for a jeweller, so it means metric tonnes.",
-    "V2": "Gujarat Themis Biosyn files RevenueFromOperations = ₹165.82 (its revenue in ₹ crore "
-    "typed into a rupee field), giving an intensity of 112.9 tCO2e per rupee.",
+    "V2": "Gujarat Themis Biosyn's FY2024-25 RevenueFromOperations is ₹153.23, but its total "
+    "revenue (₹2,48,38,19,619) is 1.62e7 times larger, which no lakh/crore reading explains. Left "
+    "as filed, flagged, and kept out of WACI.",
+    "V2-fix": "Gujarat Themis Biosyn's FY2025-26 RevenueFromOperations of 165.82 is ₹ crore: its "
+    "TotalRevenueOfTheCompany is 1,658,227,981, exactly 1e7 times larger. Everest Kanto files "
+    "operating revenue in crore and total revenue in lakh.",
     "V3": "Everest Kanto Cylinder files RevenueFromOperations = 934.43 but "
     "TotalRevenueOfTheCompany = 96,669.",
     "V4": "Gulshan Polyols files Scope 1 = 0 and Scope 2 = 0 for FY2024-25, next to about "

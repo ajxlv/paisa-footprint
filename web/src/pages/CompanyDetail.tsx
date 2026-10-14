@@ -116,7 +116,10 @@ function YearsSection({ years }: { years: CompanyYear[] }) {
                   </th>
                   <td className="num">{formatNumber(y.scope1_t)}</td>
                   <td className="num">{formatNumber(y.scope2_t)}</td>
-                  <td className="num">{formatINR(y.revenue_inr)}</td>
+                  <td className="num">
+                    {formatINR(y.revenue_inr_resolved)}
+                    {y.revenue_corrected && <CorrectedChip />}
+                  </td>
                   <td className="num">{formatSig(y.intensity_t_per_crore)}</td>
                 </tr>
               ))}
@@ -154,17 +157,30 @@ function YearsSection({ years }: { years: CompanyYear[] }) {
   );
 }
 
+function CorrectedChip() {
+  return (
+    <span
+      className="ml-1.5 inline-block rounded bg-amber-100 px-1.5 py-0.5 align-middle font-sans text-[11px] font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200"
+      title="Scale corrected by rule V2-fix; see Transformation"
+    >
+      Corrected
+    </span>
+  );
+}
+
 function ProvenancePanel({ years }: { years: CompanyYear[] }) {
   return (
     <section aria-labelledby="prov-h">
       <h2 id="prov-h" className="text-lg font-semibold">Where this number comes from</h2>
       <p className="mb-4 mt-1 text-sm text-stone-600 dark:text-stone-400">
-        Each figure as filed in the XBRL, with the element, context, period, raw value and unit. {TRANSFORM_HINT}
+        Each figure as filed in the XBRL, with the element, context, period, raw value and unit, and the value we
+        actually use. {TRANSFORM_HINT} An amber <span className="font-medium">Corrected</span> chip marks a
+        revenue figure rescaled by rule V2-fix.
       </p>
       <div className="space-y-6">
         {years.map((y) => (
           <div key={y.fiscal_year} className="overflow-x-auto rounded-lg border border-stone-200 dark:border-stone-800">
-            <table className="table-base min-w-[880px]">
+            <table className="table-base min-w-[980px]">
               <caption className="px-3 pt-3 text-left text-sm font-medium">{y.fiscal_year}</caption>
               <thead>
                 <tr>
@@ -173,6 +189,7 @@ function ProvenancePanel({ years }: { years: CompanyYear[] }) {
                   <th scope="col">Context · period</th>
                   <th scope="col" className="num">Raw value</th>
                   <th scope="col">Raw unit</th>
+                  <th scope="col" className="num">Value used</th>
                   <th scope="col">Transformation</th>
                 </tr>
               </thead>
@@ -187,11 +204,15 @@ function ProvenancePanel({ years }: { years: CompanyYear[] }) {
                     </td>
                     <td className="num font-mono text-xs">{p.raw_value}</td>
                     <td className="font-mono text-xs">{p.unit_raw ?? '–'}</td>
+                    <td className="num font-mono text-xs">
+                      {p.value_used === null || p.value_used === undefined ? '–' : formatNumber(p.value_used, 10)}
+                      {p.corrected && <CorrectedChip />}
+                    </td>
                     <td className="text-xs">{p.transformation}</td>
                   </tr>
                 ))}
                 {Object.keys(y.provenance).length === 0 && (
-                  <tr><td colSpan={6} className="text-sm text-stone-500">No emissions or revenue facts filed for this year.</td></tr>
+                  <tr><td colSpan={7} className="text-sm text-stone-500">No emissions or revenue facts filed for this year.</td></tr>
                 )}
               </tbody>
             </table>

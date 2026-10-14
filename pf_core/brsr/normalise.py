@@ -16,7 +16,8 @@ from pydantic import BaseModel
 
 from pf_core.brsr import config
 from pf_core.brsr.models import BrsrFiling, FactProvenance, FiscalYearData
-from pf_core.brsr.validators import Issue, fy_label, validate, years
+from pf_core.brsr.revenue import OPS, TOTAL, Resolution, RevenueResolution
+from pf_core.brsr.validators import Issue, fy_label, validate, year_revenue, years
 
 QualityFlag = Literal["ok", "review", "excluded"]
 
@@ -37,6 +38,8 @@ class ValueProvenance(BaseModel):
     unit_raw: str | None
     raw_value: str
     transformation: str
+    value_used: float | None = None
+    corrected: bool = False
 
 
 class CleanCompanyYear(BaseModel):
@@ -56,6 +59,11 @@ class CleanCompanyYear(BaseModel):
     scope2_t: float | None
     revenue_inr: float | None
     total_revenue_inr: float | None
+    revenue_inr_resolved: float | None
+    total_revenue_inr_resolved: float | None
+    revenue_resolution: Resolution
+    revenue_note: str
+    revenue_corrected: bool
     intensity_reported_per_inr: float | None
     intensity_t_per_crore: float | None
     ghg_applicable: bool | None
@@ -86,16 +94,11 @@ def _clean_year(
     provenance: dict[str, ValueProvenance] = {}
     scope1_t = _tonnes(year, "scope1", zero_year, provenance)
     scope2_t = _tonnes(year, "scope2", zero_year, provenance)
-    for field in ("revenue_from_operations_inr", "total_revenue_inr", "intensity_reported_per_inr"):
-        fact = year.facts.get(field)
-        if fact is not None:
-            note = "none (as filed)"
-            if field == "revenue_from_operations_inr" and revenue_error:
-                note = "none; flagged as a scale error (rule V2), not corrected"
-            provenance[field] = _trace(fact, note)
+    resolved = year_revenue(year)
+    provenance.update(_revenue_provenance(year, resolved, revenue_error))
 
     intensity = None
-    revenue = year.revenue_from_operations_inr
+    revenue = resolved.revenue_inr_resolved
     if scope1_t is not None and scope2_t is not None and revenue and not revenue_error:
         intensity = (scope1_t + scope2_t) / (revenue / config.INR_PER_CRORE)
 
@@ -115,6 +118,11 @@ def _clean_year(
         scope2_t=scope2_t,
         revenue_inr=year.revenue_from_operations_inr,
         total_revenue_inr=year.total_revenue_inr,
+        revenue_inr_resolved=resolved.revenue_inr_resolved,
+        total_revenue_inr_resolved=resolved.total_revenue_inr_resolved,
+        revenue_resolution=resolved.resolution,
+        revenue_note=resolved.note,
+        revenue_corrected=resolved.ops_corrected,
         intensity_reported_per_inr=year.intensity_reported_per_inr,
         intensity_t_per_crore=intensity,
         ghg_applicable=year.ghg_applicable if is_current else filing.fy_current.ghg_applicable,
@@ -124,6 +132,31 @@ def _clean_year(
         exclusion_reason=reason,
         provenance=provenance,
     )
+
+
+def _revenue_provenance(
+    year: FiscalYearData, resolved: RevenueResolution, revenue_error: bool
+) -> dict[str, ValueProvenance]:
+    """Trace both revenue fields and the reported intensity, marking any V2-fix correction."""
+    used = {OPS: resolved.revenue_inr_resolved, TOTAL: resolved.total_revenue_inr_resolved}
+    out: dict[str, ValueProvenance] = {}
+    for field in (OPS, TOTAL, "intensity_reported_per_inr"):
+        fact = year.facts.get(field)
+        if fact is None:
+            continue
+        note, corrected = "none (as filed)", False
+        if field in resolved.factors:
+            note, corrected = (
+                f"corrected ×{resolved.factors[field]:.0e} (rule V2-fix): {resolved.note}",
+                True,
+            )
+        elif field == OPS and revenue_error:
+            note = "none; flagged as a scale error (rule V2), not corrected"
+        trace = _trace(fact, note)
+        out[field] = trace.model_copy(
+            update={"value_used": used.get(field), "corrected": corrected}
+        )
+    return out
 
 
 def _tonnes(
@@ -143,7 +176,9 @@ def _tonnes(
     if unit_name not in _TONNE_UNITS:
         provenance[f"{field}_t"] = _trace(fact, f"unrecognised unit {fact.unit_raw!r}; withheld")
         return None
-    provenance[f"{field}_t"] = _trace(fact, _TONNE_UNITS[unit_name])
+    provenance[f"{field}_t"] = _trace(fact, _TONNE_UNITS[unit_name]).model_copy(
+        update={"value_used": raw}
+    )
     return raw
 
 

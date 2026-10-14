@@ -193,7 +193,9 @@ function Results({ result }: { result: PortfolioResult }) {
         <Metric
           label="WACI"
           value={formatSig(result.waci_t_per_crore_revenue, 6)}
-          unit={`tCO2e per ₹ crore revenue · covers ${formatPct(result.waci_coverage_pct)} of value`}
+          unit={`tCO2e per ₹ crore revenue · covers ${formatPct(result.waci_coverage_pct)} of value${
+            result.waci_data_quality == null ? '' : ` · DQ ${result.waci_data_quality.toFixed(2)}`
+          }`}
         />
         <Metric label="PCAF data quality" value={result.pcaf_data_quality === null ? '–' : result.pcaf_data_quality.toFixed(2)} unit="1 = assured, 2 = not assured (lower is better)" />
       </div>
@@ -223,6 +225,11 @@ function Results({ result }: { result: PortfolioResult }) {
                       <p className="font-mono">financed = {formatSig(h.attribution, 6)} × ({formatNumber(h.scope1_t)} + {formatNumber(h.scope2_t)}) = {formatNumber(h.financed_emissions_t, 6)} t</p>
                       <p>Emissions: {h.fiscal_year} BRSR · EVIC: {h.evic_source}{h.evic_is_illustrative ? ' (illustrative)' : ''}</p>
                       {!h.in_waci && <p>Not in WACI: {h.waci_exclusion_reason}</p>}
+                      {h.revenue_corrected && (
+                        <p className="text-amber-800 dark:text-amber-300">
+                          Revenue corrected for scale (rule V2-fix); WACI data quality capped at 2.
+                        </p>
+                      )}
                       <Link to={`/companies/${h.company_key}`} className="underline">Where the emissions come from →</Link>
                     </div>
                   </details>
