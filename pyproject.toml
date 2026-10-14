@@ -31,6 +31,7 @@ dev = [
   "httpx>=0.27",
   "pandas-stubs",
   "lxml-stubs",
+  "types-openpyxl",
 ]
 
 [project.scripts]

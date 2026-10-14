@@ -140,6 +140,22 @@ is never overwritten: the provenance panel shows the raw value, the value used a
 Gujarat Themis FY2024-25 (153.23 vs 2,483,819,619, ratio 1.62e7) and PTC Industries FY2025-26
 (17% apart) also stay `unresolved`.
 
+## Funds and rule V8
+
+A fund is a portfolio, so it goes through the same engine. Only listed Indian **equity** lines
+(ISIN security type `01`) are attributed. Debt, cash and unrecognised instruments are shown but not
+attributed. Coverage is the share of **equity** value with reported emissions and an EVIC.
+
+- **V8:** a scheme's lines (equity, debt and cash) should add up to 95–105% of NAV. Otherwise
+  lines were probably missed or doubled.
+- **ISINs:** an ISIN not in INE… format is reported, and a duplicated ISIN is summed with a
+  warning.
+- **Coverage threshold:** a fund under **50% coverage** is shown as "insufficient coverage" and
+  is not ranked. Its footprint would mostly describe the holdings we cannot see.
+- **No mixing:** illustrative (synthetic) funds are never ranked alongside real ones.
+
+See [AMC_DATA_PLAN.md](AMC_DATA_PLAN.md).
+
 ## Principles
 
 - **Missing means unknown.** An absent figure is `None`, never zero.
