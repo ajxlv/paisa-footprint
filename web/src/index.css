@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-white text-stone-900 antialiased dark:bg-stone-950 dark:text-stone-100;
+  }
+  :focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-accent-700 dark:outline-accent-300;
+  }
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+  }
+  .card {
+    @apply rounded-lg border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-md bg-accent-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-800 disabled:opacity-50 dark:bg-accent-700 dark:hover:bg-accent-600;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-md border border-stone-300 px-4 py-2 text-sm font-medium text-stone-800 transition-colors hover:bg-stone-100 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800;
+  }
+  .input {
+    @apply w-full rounded-md border border-stone-300 bg-white px-2 py-1.5 text-sm dark:border-stone-700 dark:bg-stone-900;
+  }
+  .table-base {
+    @apply w-full border-collapse text-sm;
+  }
+  .table-base th {
+    @apply border-b border-stone-200 px-3 py-2 text-left font-medium text-stone-600 dark:border-stone-800 dark:text-stone-400;
+  }
+  .table-base td {
+    @apply border-b border-stone-100 px-3 py-2 align-top dark:border-stone-800/60;
+  }
+  .num {
+    @apply text-right tabular-nums;
+  }
+  .prose-pf h1 { @apply mb-4 text-3xl font-semibold tracking-tight; }
+  .prose-pf h2 { @apply mb-3 mt-10 text-xl font-semibold; }
+  .prose-pf h3 { @apply mb-2 mt-6 font-semibold; }
+  .prose-pf p { @apply my-3 leading-7 text-stone-700 dark:text-stone-300; }
+  .prose-pf ul, .prose-pf ol { @apply my-3 ml-6 space-y-1 text-stone-700 dark:text-stone-300; }
+  .prose-pf ul { @apply list-disc; }
+  .prose-pf ol { @apply list-decimal; }
+  .prose-pf pre { @apply my-4 overflow-x-auto rounded-md bg-stone-100 p-4 text-[13px] dark:bg-stone-900; }
+  .prose-pf code { @apply font-mono text-[13px]; }
+  .prose-pf blockquote { @apply my-4 border-l-4 border-amber-400 bg-amber-50 px-4 py-1 dark:bg-amber-950/40; }
+  .prose-pf table { @apply my-4 block w-full overflow-x-auto text-sm; }
+  .prose-pf th { @apply border-b border-stone-300 px-3 py-2 text-left dark:border-stone-700; }
+  .prose-pf td { @apply border-b border-stone-100 px-3 py-2 align-top dark:border-stone-800; }
+  .prose-pf a { @apply text-accent-800 underline dark:text-accent-300; }
+}
+
+/* Anchor sr-only labels inside scrolling tables so they cannot widen the page. */
+.overflow-x-auto {
+  position: relative;
+}
