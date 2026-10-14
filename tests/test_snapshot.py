@@ -156,3 +156,17 @@ def test_overlapping_years_keep_reporting_year_figure(tmp_path: Path) -> None:
 def test_submission_stamp_parsing() -> None:
     assert submission_stamp("BRSR_1_WebXMLFile_20260916_165325349.xml") == "20260916165325349"
     assert submission_stamp("odd-name.xml") == ""
+
+
+def test_unparseable_file_is_reported_not_dropped(tmp_path: Path) -> None:
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    shutil.copy(NMDC_FILE, raw / NMDC_FILE.name)
+    (raw / "BRSR_0_WebXMLFile_20260101_000000000.xml").write_text("<html>NSE error page</html>")
+    (raw / "BRSR_1_WebXMLFile_20260101_000000000.xml").write_text("not xml at all <<<")
+    summary = build_snapshot(raw, tmp_path / "snap")
+    assert (summary.files_parsed, summary.files_failed) == (1, 2)
+    excluded = pd.read_parquet(tmp_path / "snap" / "excluded.parquet")
+    failed = excluded[excluded.kind == "parse_failed"]
+    assert len(failed) == 2
+    assert all(r.startswith("Failed to parse") for r in failed.reason)

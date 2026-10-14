@@ -206,7 +206,9 @@ def v4_zero_year(filing: BrsrFiling) -> list[Issue]:
     issues: list[Issue] = []
     pairs = ((filing.fy_current, filing.fy_previous), (filing.fy_previous, filing.fy_current))
     for year, other in pairs:
+        # Only "is the other year non-zero?" is asked, so a missing scope adds nothing here.
         other_total = (other.scope1 or 0.0) + (other.scope2 or 0.0)
+        # Exact comparison on purpose: V4 is about a literal "0" in the filing, not a small number.
         if year.scope1 == 0 and year.scope2 == 0 and other_total > 0:
             issues.append(
                 Issue(
@@ -311,6 +313,8 @@ def v10_intensity_check(filing: BrsrFiling) -> list[Issue]:
         diff = abs(computed - reported)
         if diff <= config.V10_ABS_TOLERANCE:
             continue
+        # `reported != 0` only guards the division; near-zero cases were settled by the
+        # absolute tolerance above.
         if reported != 0 and diff / abs(reported) <= config.V10_REL_TOLERANCE:
             continue
         issues.append(

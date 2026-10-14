@@ -40,6 +40,7 @@ class FundResult(BaseModel):
     rank: int | None
     equity_value_inr: float
     non_equity_value_inr: float
+    non_equity_unvalued_lines: int = 0
     coverage_pct: float
     carbon_footprint_t_per_crore: float | None
     waci_t_per_crore_revenue: float | None
@@ -79,8 +80,10 @@ def fund_result(
     result: PortfolioResult | None = (
         compute_portfolio(holdings, emissions, financials) if holdings else None
     )
-    non_equity = sum(h.market_value_inr or 0.0 for h in portfolio.holdings if not h.is_equity)
-    return _assemble(portfolio, issues, result, unvalued, non_equity)
+    others = [h for h in portfolio.holdings if not h.is_equity]
+    non_equity = sum(h.market_value_inr for h in others if h.market_value_inr is not None)
+    unvalued_others = sum(h.market_value_inr is None for h in others)
+    return _assemble(portfolio, issues, result, unvalued, (non_equity, unvalued_others))
 
 
 def _assemble(
@@ -88,7 +91,7 @@ def _assemble(
     issues: list[FundIssue],
     result: PortfolioResult | None,
     unvalued: list[UncoveredHolding],
-    non_equity: float,
+    non_equity: tuple[float, int],
 ) -> FundResult:
     coverage = result.coverage_pct if result else 0.0
     status: FundStatus = (
@@ -113,7 +116,8 @@ def _assemble(
         status=status,
         rank=None,
         equity_value_inr=result.total_value_inr if result else 0.0,
-        non_equity_value_inr=non_equity,
+        non_equity_value_inr=non_equity[0],
+        non_equity_unvalued_lines=non_equity[1],
         coverage_pct=coverage,
         carbon_footprint_t_per_crore=result.carbon_footprint_t_per_crore if result else None,
         waci_t_per_crore_revenue=result.waci_t_per_crore_revenue if result else None,
@@ -141,7 +145,11 @@ def rank_funds(results: list[FundResult]) -> list[FundResult]:
                 for r in group
                 if r.status == "ranked" and r.carbon_footprint_t_per_crore is not None
             ),
-            key=lambda r: r.carbon_footprint_t_per_crore or 0.0,
+            key=lambda r: (
+                r.carbon_footprint_t_per_crore
+                if r.carbon_footprint_t_per_crore is not None
+                else float("inf")
+            ),
         )
         positions = {r.fund_key: i + 1 for i, r in enumerate(eligible)}
         ranked.extend(r.model_copy(update={"rank": positions.get(r.fund_key)}) for r in group)

@@ -136,3 +136,11 @@ def test_cli_needs_some_evic(tmp_path: Path) -> None:
         app, ["compute", "--portfolio", str(SYNTHETIC_DIR / "portfolio_synthetic_c.csv")]
     )
     assert result.exit_code != 0
+
+
+def test_unreadable_numbers_and_dates_are_missing_not_zero(tmp_path: Path) -> None:
+    fins, issues = load_evic_real(write(tmp_path, 'TESTCO1,"1,000",n/a,,31/03/2026,s\n'))
+    assert fins["TESTCO1"].evic_inr == 1000  # Indian/Western grouping commas are accepted
+    assert fins["TESTCO1"].evic_partial  # "n/a" debt is missing, not zero
+    assert fins["TESTCO1"].evic_as_of is None
+    assert {i.rule_id for i in issues} == {"E2", "E3"}

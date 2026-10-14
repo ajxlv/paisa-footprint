@@ -84,10 +84,10 @@ def validate_fund(portfolio: FundPortfolio) -> tuple[FundPortfolio, list[FundIss
 
 
 def _add(a: float | None, b: float | None) -> float | None:
-    """Sum that keeps "unknown" unknown: None only if both sides are missing."""
-    if a is None and b is None:
+    """Sum that keeps "unknown" unknown: if either line lacks the value, the total is unknown."""
+    if a is None or b is None:
         return None
-    return (a or 0.0) + (b or 0.0)
+    return a + b
 
 
 def _issue(portfolio: FundPortfolio, rule: str, field: str, message: str) -> FundIssue:

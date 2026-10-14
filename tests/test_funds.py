@@ -261,3 +261,39 @@ def test_cli_ingest_and_rank(tmp_path: Path, snapshot_dir: Path) -> None:
     assert r2.exit_code == 0, r2.output
     assert "insufficient coverage" in r2.output
     assert (snap / "fund_rankings.json").exists()
+
+
+def test_duplicate_with_a_missing_value_sums_to_unknown_not_partial() -> None:
+    p = FundPortfolio(
+        amc="a",
+        scheme_name="s",
+        as_of_date=None,
+        source_file="f",
+        sheet="x",
+        holdings=[
+            FundHolding(isin="INE584A01023", name="n", market_value_inr=100.0, pct_nav=10.0),
+            FundHolding(isin="INE584A01023", name="n", market_value_inr=None, pct_nav=5.0),
+        ],
+    )
+    merged, _ = merge_duplicates(p)
+    (only,) = merged.holdings
+    assert only.market_value_inr is None  # 100 + unknown is unknown, never 100
+    assert only.pct_nav == 15.0
+
+
+def test_unvalued_non_equity_lines_are_counted_not_zeroed(snapshot_dir: Path) -> None:
+    p = FundPortfolio(
+        amc="a",
+        scheme_name="s",
+        as_of_date=None,
+        source_file="f",
+        sheet="x",
+        holdings=[
+            FundHolding(isin="INE584A01023", name="NMDC", market_value_inr=1e7, pct_nav=90.0),
+            FundHolding(isin=None, name="TREPS", market_value_inr=5e5, pct_nav=5.0),
+            FundHolding(isin=None, name="Net receivables", market_value_inr=None, pct_nav=5.0),
+        ],
+    )
+    (result,) = rank_snapshot_funds(snapshot_dir, load_evic_csv(EVIC), [p], [])
+    assert result.non_equity_value_inr == 5e5
+    assert result.non_equity_unvalued_lines == 1
