@@ -44,9 +44,9 @@ export function Home() {
               sub={`${data.reporting_scope12} of ${data.companies}; the rest say "not applicable"`}
             />
             <StatTile
-              label="Data issues caught"
-              value={String(data.issues_total)}
-              sub={`Across ${data.rules.filter((r) => r.issues > 0).length} validator rules`}
+              label="Data problems caught"
+              value={String(data.issues_problems)}
+              sub={`in ${data.companies_with_problems} companies · ${data.issues_info} informational notes`}
             />
           </div>
         )}

@@ -61,6 +61,12 @@ def scope12_t_per_crore(year: FiscalYearData) -> float | None:
     return (year.scope1 + year.scope2) / (year.revenue_from_operations_inr / config.INR_PER_CRORE)
 
 
+def _revenue_trusted(year: FiscalYearData) -> bool:
+    """Revenue passes the V2 scale check, so ratios built on it mean something."""
+    revenue = year.revenue_from_operations_inr
+    return revenue is not None and revenue >= config.V2_MIN_PLAUSIBLE_REVENUE_INR
+
+
 def _is_megatonne_label(unit_raw: str | None) -> bool:
     return unit_raw is not None and unit_raw.rsplit(":", 1)[-1] == "MtCO2e"
 
@@ -71,7 +77,9 @@ def v1_mtco2e_label(filing: BrsrFiling) -> list[Issue]:
     for year in years(filing):
         if not _is_megatonne_label(year.emissions_unit_raw):
             continue
-        implied = scope12_t_per_crore(year)
+        # The intensity check is only meaningful against a revenue we trust. When revenue fails
+        # V2 the implied intensity is wrong by ~1e7 and would just repeat V2's finding.
+        implied = scope12_t_per_crore(year) if _revenue_trusted(year) else None
         too_high = implied is not None and implied > config.V1_MAX_PLAUSIBLE_T_PER_CRORE
         message = "Unit 'MtCO2e' interpreted as metric tonnes CO2e (not megatonnes)."
         if too_high:

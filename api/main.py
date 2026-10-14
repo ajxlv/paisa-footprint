@@ -107,6 +107,8 @@ class RuleSummary(BaseModel):
     rule_id: str
     description: str
     issues: int
+    problems: int = Field(description="Issues of severity error or warning")
+    info: int = Field(description="Informational notes (severity info)")
     companies: int
     example: str
 
@@ -118,7 +120,10 @@ class ValidationSummary(BaseModel):
     assured: int
     pct_assured_of_reporting: float | None
     excluded_companies: int
-    issues_total: int
+    issues_problems: int = Field(description="Issues of severity error or warning")
+    issues_info: int = Field(description="Informational notes (severity info), not problems")
+    companies_with_problems: int
+    issues_total: int = Field(description="All issues, problems plus informational notes")
     quality_flags: dict[str, int]
     rules: list[RuleSummary]
     excluded: list[dict[str, Any]]
@@ -239,6 +244,8 @@ def create_app(
                 rule_id=rule,
                 description=text,
                 issues=stats["issues_per_rule"].get(rule, 0),
+                problems=stats["problems_per_rule"].get(rule, 0),
+                info=stats["info_per_rule"].get(rule, 0),
                 companies=stats["companies_per_rule"].get(rule, 0),
                 example=RULE_EXAMPLES.get(rule, ""),
             )
@@ -254,6 +261,9 @@ def create_app(
                     "assured",
                     "pct_assured_of_reporting",
                     "excluded_companies",
+                    "issues_problems",
+                    "issues_info",
+                    "companies_with_problems",
                     "issues_total",
                     "quality_flags",
                 )

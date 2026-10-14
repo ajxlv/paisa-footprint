@@ -59,9 +59,14 @@ def test_validation_summary(client: TestClient) -> None:
     assert body["companies"] == 20
     assert body["reporting_scope12"] == 15
     assert body["issues_total"] == 40
+    assert body["issues_problems"] == 14
+    assert body["issues_info"] == 26
+    assert body["companies_with_problems"] == 6
     rules = {r["rule_id"]: r for r in body["rules"]}
     assert rules["V2"]["companies"] == 2
     assert rules["V10"]["issues"] == 0
+    assert (rules["V1"]["problems"], rules["V1"]["info"]) == (0, 20)
+    assert (rules["V3"]["problems"], rules["V3"]["info"]) == (8, 0)
     assert all(r["example"] for r in body["rules"])
     assert len([e for e in body["excluded"] if e["is_current"]]) == 5
 

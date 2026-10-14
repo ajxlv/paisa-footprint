@@ -1,6 +1,6 @@
 /** Mocked API payloads for component tests. SYNTHETIC: illustrative values, not real market data. */
 import { vi } from "vitest";
-import type { CompanySummary, DemoPortfolio } from '../lib/api';
+import type { CompanySummary, DemoPortfolio, ValidationSummary } from '../lib/api';
 
 export const companiesSynthetic: CompanySummary[] = [
   {
@@ -37,3 +37,20 @@ export function mockFetch(routes: Record<string, unknown>) {
     return new Response(JSON.stringify(routes[path]), { status: 200, headers: { 'Content-Type': 'application/json' } });
   });
 }
+
+/** Shape of GET /validation/summary with the fixture snapshot's headline counts. */
+export const validationSummarySynthetic: ValidationSummary = {
+  companies: 20,
+  reporting_scope12: 15,
+  pct_reporting_scope12: 75,
+  assured: 6,
+  pct_assured_of_reporting: 40,
+  excluded_companies: 5,
+  issues_problems: 14,
+  issues_info: 26,
+  companies_with_problems: 6,
+  issues_total: 40,
+  quality_flags: { ok: 11, review: 4, excluded: 5 },
+  rules: [],
+  excluded: [],
+};

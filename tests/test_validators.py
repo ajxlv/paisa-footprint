@@ -38,11 +38,28 @@ def test_v1_mtco2e_titan_is_info(by_name: dict[str, BrsrFiling]) -> None:
 def test_v1_counts(filings: list[BrsrFiling]) -> None:
     # 10 of 15 reporting filings tag emissions MtCO2e (data-check-results.md, finding 1).
     assert len(companies_hit(filings, "V1")) == 10
-    # The implausible-intensity warning fires only where revenue is mis-scaled.
-    assert companies_hit(filings, "V1", "warning") == {
-        "GUJARAT THEMIS BIOSYN LIMITED",
-        "Everest Kanto Cylinder Limited",
-    }
+    # Run 2: the implausible-intensity check is skipped when revenue fails V2, because the
+    # implied intensity is then wrong by ~1e7 and only repeats V2. No fixture with trusted revenue
+    # crosses the threshold, so every V1 issue on the fixtures is informational.
+    assert companies_hit(filings, "V1", "warning") == set()
+    assert companies_hit(filings, "V1", "info") == companies_hit(filings, "V1")
+
+
+def test_v1_warns_when_trusted_revenue_implies_megatonnes() -> None:
+    # 1,000,000 t on ₹100 crore of revenue = 10,000 t/₹ cr: plausible, stays info.
+    plausible = _constructed(scope1=500_000, scope2=500_000, revenue=1e9, unit="Non-SI:MtCO2e")
+    assert {i.severity for i in VALIDATORS["V1"](plausible)} == {"info"}
+    # 10,000,000 t on ₹100 crore = 100,000 t/₹ cr: above 50,000, so the unit is doubtful.
+    implausible = _constructed(
+        scope1=5_000_000, scope2=5_000_000, revenue=1e9, unit="Non-SI:MtCO2e"
+    )
+    assert "warning" in {i.severity for i in VALIDATORS["V1"](implausible)}
+
+
+def test_v1_skips_intensity_check_on_untrusted_revenue() -> None:
+    filing = _constructed(scope1=5_000_000, scope2=5_000_000, revenue=165.82, unit="Non-SI:MtCO2e")
+    assert {i.severity for i in VALIDATORS["V1"](filing)} == {"info"}
+    assert VALIDATORS["V2"](filing)  # the revenue problem is still reported, once, by V2
 
 
 def test_v2_revenue_scale(filings: list[BrsrFiling]) -> None:

@@ -1,4 +1,23 @@
 /** Plain-English explanations of each validator, shown wherever an issue appears. */
+/**
+ * `problem` rules flag something a human should check (severity warning/error);
+ * `info` rules record something handled by design (severity info) and are not problems.
+ */
+export type RuleKind = 'problem' | 'info';
+
+export const RULE_KIND: Record<string, RuleKind> = {
+  V1: 'info',
+  V2: 'problem',
+  'V2-fix': 'problem',
+  V3: 'problem',
+  V4: 'problem',
+  V5: 'problem',
+  V6: 'info',
+  V7: 'problem',
+  V9: 'info',
+  V10: 'problem',
+};
+
 export const RULE_TEXT: Record<string, { title: string; plain: string }> = {
   V1: {
     title: '"MtCO2e" read as metric tonnes',

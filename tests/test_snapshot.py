@@ -60,6 +60,18 @@ def test_coverage_stats(snapshot_dir: Path) -> None:
     assert stats["pct_reporting_scope12"] == 75.0
     assert stats["assured"] == 6
     assert stats["issues_per_rule"]["V2"] == 4
+    # Run 2 headline: problems (error/warning) are counted apart from informational notes.
+    assert stats["issues_problems"] == 14  # V2 x4, V3 x8, V4 x1, V5 x1
+    assert stats["issues_info"] == 26  # V1 x20, V6 x1, V9 x5
+    assert stats["companies_with_problems"] == 6
+    assert stats["issues_problems"] + stats["issues_info"] == stats["issues_total"] == 40
+    assert {k: v for k, v in stats["problems_per_rule"].items() if v} == {
+        "V2": 4,
+        "V3": 8,
+        "V4": 1,
+        "V5": 1,
+    }
+    assert {k: v for k, v in stats["info_per_rule"].items() if v} == {"V1": 20, "V6": 1, "V9": 5}
     assert stats["companies_per_rule"]["V9"] == 5
 
 

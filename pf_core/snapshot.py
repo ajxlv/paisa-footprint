@@ -179,16 +179,20 @@ def _records(frame: pd.DataFrame) -> list[dict[str, Any]]:
     return [{str(k): v for k, v in row.items()} for row in cleaned.to_dict(orient="records")]
 
 
+PROBLEM_SEVERITIES = ("error", "warning")
+
+
 def coverage_stats(snapshot: Snapshot) -> dict[str, Any]:
-    """Headline numbers for the current fiscal year of each company, plus issues per rule."""
+    """Headline numbers for the current fiscal year of each company, plus issues per rule.
+
+    Issues are split into *problems* (severity error or warning: something a human should check)
+    and *informational notes* (severity info: handled by design, e.g. MtCO2e read as tonnes).
+    Counting the two together overstated the data's problems, so the headline uses problems only.
+    """
     current = [c for c in snapshot.companies if c["is_current"]]
     reporting = [c for c in current if c["scope1_t"] is not None and c["scope2_t"] is not None]
     assured = [c for c in reporting if c["assured"] is True]
-    per_rule = {rule: 0 for rule in RULE_DESCRIPTIONS}
-    companies_per_rule: dict[str, set[str]] = {rule: set() for rule in RULE_DESCRIPTIONS}
-    for issue in snapshot.issues:
-        per_rule[issue["rule_id"]] = per_rule.get(issue["rule_id"], 0) + 1
-        companies_per_rule.setdefault(issue["rule_id"], set()).add(issue["company_key"])
+    problems = [i for i in snapshot.issues if i["severity"] in PROBLEM_SEVERITIES]
     return {
         "companies": len(current),
         "reporting_scope12": len(reporting),
@@ -196,13 +200,35 @@ def coverage_stats(snapshot: Snapshot) -> dict[str, Any]:
         "assured": len(assured),
         "pct_assured_of_reporting": _pct(len(assured), len(reporting)),
         "excluded_companies": sum(c["quality_flag"] == "excluded" for c in current),
+        "issues_problems": len(problems),
+        "issues_info": len(snapshot.issues) - len(problems),
+        "companies_with_problems": len({i["company_key"] for i in problems}),
         "issues_total": len(snapshot.issues),
-        "issues_per_rule": per_rule,
-        "companies_per_rule": {k: len(v) for k, v in companies_per_rule.items()},
+        **_per_rule(snapshot.issues),
         "quality_flags": {
             flag: sum(c["quality_flag"] == flag for c in current)
             for flag in ("ok", "review", "excluded")
         },
+    }
+
+
+def _per_rule(issues: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    """Issue and company counts per rule, with problems and informational notes kept apart."""
+    rules = list(RULE_DESCRIPTIONS)
+    totals = dict.fromkeys(rules, 0)
+    problem_counts = dict.fromkeys(rules, 0)
+    companies: dict[str, set[str]] = {rule: set() for rule in rules}
+    for issue in issues:
+        rule = issue["rule_id"]
+        totals[rule] = totals.get(rule, 0) + 1
+        if issue["severity"] in PROBLEM_SEVERITIES:
+            problem_counts[rule] = problem_counts.get(rule, 0) + 1
+        companies.setdefault(rule, set()).add(issue["company_key"])
+    return {
+        "issues_per_rule": totals,
+        "problems_per_rule": problem_counts,
+        "info_per_rule": {rule: totals[rule] - problem_counts.get(rule, 0) for rule in totals},
+        "companies_per_rule": {rule: len(keys) for rule, keys in companies.items()},
     }
 
 

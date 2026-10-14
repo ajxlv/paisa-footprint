@@ -71,6 +71,8 @@ export interface RuleSummary {
   rule_id: string;
   description: string;
   issues: number;
+  problems: number;
+  info: number;
   companies: number;
   example: string;
 }
@@ -82,6 +84,9 @@ export interface ValidationSummary {
   assured: number;
   pct_assured_of_reporting: number | null;
   excluded_companies: number;
+  issues_problems: number;
+  issues_info: number;
+  companies_with_problems: number;
   issues_total: number;
   quality_flags: Record<QualityFlag, number>;
   rules: RuleSummary[];
