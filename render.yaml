@@ -1,0 +1,21 @@
+# Render blueprint for the read-only API. Not deployed: see docs/DEPLOY.md.
+services:
+  - type: web
+    name: paisa-footprint-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      # Built into the image at build time from the 20 fixture filings.
+      - key: PF_SNAPSHOT_DIR
+        value: /app/data/snapshots/fixtures
+      - key: PF_DEMO_DIR
+        value: /app/tests/fixtures/synthetic
+      - key: PF_DOCS_DIR
+        value: /app/docs
+      # Set to the Vercel URL of the web app, e.g. https://paisa-footprint.vercel.app
+      - key: PF_CORS_ORIGINS
+        sync: false
