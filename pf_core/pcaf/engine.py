@@ -17,6 +17,7 @@ WACI needs no EVIC (design doc: "the fallback metric when EVIC data is missing")
 is every holding with usable emissions and a trustworthy revenue, with or without EVIC.
 """
 
+from pf_core.pcaf import config
 from pf_core.pcaf.models import (
     CompanyEmissions,
     CompanyFinancials,
@@ -27,7 +28,7 @@ from pf_core.pcaf.models import (
 )
 from pf_core.pcaf.quality import holding_score, portfolio_score, waci_score
 
-INR_PER_CRORE = 1e7
+INR_PER_CRORE = config.INR_PER_CRORE
 SCOPE_FIELDS = {"scope1", "scope2", "scope1_t", "scope2_t", "scope1+scope2"}
 REVENUE_FIELDS = {"revenue_from_operations_inr", "revenue_inr"}
 
@@ -147,7 +148,8 @@ def _holding_result(
         in_waci=waci_intensity is not None,
         waci_exclusion_reason=waci_reason,
         revenue_corrected=company.revenue_corrected,
-        pcaf_data_quality=holding_score(company.assured),
+        evic_partial=fin.evic_partial,
+        pcaf_data_quality=_financed_score(company, fin),
         waci_data_quality=(
             waci_score(company.assured, company.revenue_corrected)
             if waci_intensity is not None
@@ -160,6 +162,12 @@ def _holding_result(
         ),
         provenance=company.provenance,
     )
+
+
+def _financed_score(company: CompanyEmissions, fin: CompanyFinancials) -> int:
+    """PCAF score for financed emissions; a partial EVIC (no debt) cannot score better than 2."""
+    score = holding_score(company.assured)
+    return max(score, config.PARTIAL_EVIC_SCORE_FLOOR) if fin.evic_partial else score
 
 
 def _uncovered(holding: Holding, reason: str) -> UncoveredHolding:

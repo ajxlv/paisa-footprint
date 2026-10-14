@@ -26,9 +26,28 @@ data_quality       = value-weighted mean of holding scores (1 or 2)
 
 ## EVIC
 
-**EVIC** (enterprise value including cash) is market capitalisation at fiscal year end plus total debt (plus minority interest). PCAF uses EVIC rather than market cap because a company is financed by both its shareholders and its lenders. Dividing by market cap alone would hand shareholders all of the emissions and leave none for debt holders, overstating an equity investor's share for heavily indebted companies.
+**EVIC** (enterprise value including cash) is, per PCAF for listed equity:
 
-> **Status:** this repository has **no real EVIC data yet**. The portfolio calculator accepts EVIC you enter, and the demo uses clearly labelled illustrative values. Real EVIC (NSE market cap + borrowings from financial results) is the week-2 milestone.
+```
+EVIC = market capitalisation at fiscal year end + total debt + minority interest
+```
+
+There is **no deduction for cash**, unlike the usual enterprise value. PCAF uses EVIC rather than
+market cap because a company is financed by both its shareholders and its lenders. Dividing by
+market cap alone would hand shareholders all of the emissions and leave none for debt holders,
+overstating an equity investor's share for heavily indebted companies.
+
+Real EVIC is loaded from a CSV (`pf compute --evic-real`, template in
+`data_templates/evic_template.csv`) and checked:
+- **E1**: market cap missing or ≤ 0 is an error, and the company gets no EVIC.
+- **E2**: missing debt gives a *partial* EVIC (market cap only), with data quality capped at 2.
+- **E3**: an `as_of_date` more than 15 months from the emissions year end is a warning.
+
+See [EVIC_DATA_PLAN.md](EVIC_DATA_PLAN.md).
+
+> **Status:** this repository has **no real EVIC data yet**. The demo uses clearly labelled
+> illustrative values. A result is marked `contains_illustrative_inputs` unless every EVIC it used
+> came from a non-illustrative file.
 
 ## WACI
 

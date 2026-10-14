@@ -1,5 +1,6 @@
 """Inputs and outputs of the PCAF engine."""
 
+from datetime import date
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -20,6 +21,8 @@ class CompanyFinancials(BaseModel):
     evic_inr: float | None = Field(default=None, gt=0)
     evic_source: str
     evic_is_illustrative: bool
+    evic_partial: bool = False
+    evic_as_of: date | None = None
 
 
 class CompanyEmissions(BaseModel):
@@ -32,6 +35,7 @@ class CompanyEmissions(BaseModel):
     revenue_inr: float | None
     assured: bool | None
     fiscal_year: str
+    period_end: date | None = None
     quality_flag: Literal["ok", "review", "excluded"]
     revenue_corrected: bool = False
     revenue_resolution: str = "as_filed"
@@ -51,6 +55,7 @@ class HoldingResult(BaseModel):
     evic_inr: float
     evic_source: str
     evic_is_illustrative: bool
+    evic_partial: bool = False
     attribution: float
     scope1_t: float
     scope2_t: float

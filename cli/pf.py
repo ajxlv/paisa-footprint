@@ -11,6 +11,7 @@ from pf_core.brsr.fetch import fetch_brsr
 from pf_core.brsr.parser import parse_directory, parse_file
 from pf_core.brsr.validators import RULE_DESCRIPTIONS, validate
 from pf_core.pcaf.engine import compute_portfolio
+from pf_core.pcaf.evic import load_evic_real
 from pf_core.pcaf.inputs import (
     company_index,
     emissions_from_snapshot,
@@ -96,14 +97,34 @@ def compute(
     portfolio: Path = typer.Option(
         ..., exists=True, dir_okay=False, help="isin_or_symbol,value_inr"
     ),
-    evic: Path = typer.Option(..., exists=True, dir_okay=False, help="company_key,evic_inr,..."),
+    evic: Path | None = typer.Option(
+        None, exists=True, dir_okay=False, help="Illustrative EVIC CSV (company_key,evic_inr,...)."
+    ),
+    evic_real: Path | None = typer.Option(
+        None,
+        "--evic-real",
+        exists=True,
+        dir_okay=False,
+        help="Real EVIC CSV (data_templates/evic_template.csv); overrides --evic per company.",
+    ),
     snapshot: Path = typer.Option(Path("data/snapshots/fixtures"), exists=True, file_okay=False),
     out: Path = typer.Option(Path("portfolio_result.json"), help="JSON output path."),
 ) -> None:
     """Compute PCAF financed emissions for a portfolio CSV."""
+    if evic is None and evic_real is None:
+        raise typer.BadParameter("Give --evic (illustrative) and/or --evic-real (real data).")
     snap = load_snapshot(snapshot)
+    emissions = emissions_from_snapshot(snap)
+    financials = load_evic_csv(evic) if evic else {}
+    if evic_real is not None:
+        fy_end = {k: e.period_end for k, e in emissions.items() if e.period_end is not None}
+        real, evic_issues = load_evic_real(evic_real, fy_end)
+        financials.update(real)
+        for issue in evic_issues:
+            label = f"EVIC {issue.severity.upper()} {issue.rule_id} {issue.company_key}"
+            typer.echo(f"{label}: {issue.message}")
     holdings = load_portfolio_csv(portfolio, company_index(snap))
-    result = compute_portfolio(holdings, emissions_from_snapshot(snap), load_evic_csv(evic))
+    result = compute_portfolio(holdings, emissions, financials)
     out.write_text(result.model_dump_json(indent=2), encoding="utf-8")
 
     if result.contains_illustrative_inputs:
