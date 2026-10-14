@@ -1,0 +1,12 @@
+# ILLUSTRATIVE, NOT REAL MARKET DATA. Synthetic portfolio B: 8 holdings exercising every exclusion path.
+# RAJESHEXPO: GHG "not applicable" (V9), uncovered. GUJTHEM: V2 revenue error, covered but not in WACI.
+# INE000000000: placeholder ISIN that matches no company (V7), uncovered.
+isin_or_symbol,value_inr
+INE584A01023,20000000
+INE040A01034,30000000
+VARROC,10000000
+INE689W01016,5000000
+INE255D01024,5000000
+RAJESHEXPO,10000000
+INE942C01045,6000000
+INE000000000,4000000
