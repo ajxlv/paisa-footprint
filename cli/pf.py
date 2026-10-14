@@ -2,10 +2,12 @@
 
 import csv
 from collections import Counter
+from datetime import date, datetime
 from pathlib import Path
 
 import typer
 
+from pf_core.brsr.fetch import fetch_brsr
 from pf_core.brsr.parser import parse_directory, parse_file
 from pf_core.brsr.validators import RULE_DESCRIPTIONS, validate
 from pf_core.pcaf.engine import compute_portfolio
@@ -123,6 +125,30 @@ def compute(
     if result.pcaf_data_quality is not None:
         typer.echo(f"PCAF data quality    {result.pcaf_data_quality:.2f}")
     typer.echo(f"JSON written to {out}")
+
+
+@app.command("fetch-brsr")
+def fetch_brsr_cmd(
+    out: Path = typer.Option(Path("data/raw/brsr"), "--out", help="Where XBRL files are saved."),
+    from_: str = typer.Option("2022-01-01", "--from", help="First submission date, YYYY-MM-DD."),
+    to: str = typer.Option("", "--to", help="Last submission date (default: today)."),
+    source: str = typer.Option("api", "--source", help="'api' (full history) or 'rss' (recent)."),
+) -> None:
+    """Download BRSR XBRL filings from NSE (run on a laptop: NSE blocks cloud servers)."""
+    if source not in ("api", "rss"):
+        raise typer.BadParameter("--source must be 'api' or 'rss'")
+    start = datetime.strptime(from_, "%Y-%m-%d").date()
+    end = datetime.strptime(to, "%Y-%m-%d").date() if to else date.today()
+    summary = fetch_brsr(out, start, end, source="api" if source == "api" else "rss")
+    typer.echo(f"Links found        {summary.links_found}")
+    typer.echo(f"Downloaded         {summary.downloaded}")
+    typer.echo(f"Already on disk    {summary.skipped_existing}")
+    typer.echo(f"Failed             {summary.failed}")
+    for url, reason in summary.failures.items():
+        typer.echo(f"  FAILED {url}: {reason}")
+    typer.echo(
+        f"Manifest: {out / 'manifest.csv'}  Response schema: {out / '_response_schema.json'}"
+    )
 
 
 if __name__ == "__main__":

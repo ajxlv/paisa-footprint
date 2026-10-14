@@ -14,15 +14,18 @@ Files written:
 
 import hashlib
 import json
+import re
+from datetime import date
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 from pydantic import BaseModel
 
+from pf_core.brsr.models import BrsrFiling
 from pf_core.brsr.normalise import CleanCompanyYear, normalise
 from pf_core.brsr.parser import parse_directory
-from pf_core.brsr.validators import RULE_DESCRIPTIONS, validate
+from pf_core.brsr.validators import RULE_DESCRIPTIONS, fy_label, validate
 
 COMPANIES = "companies.parquet"
 VALIDATION = "validation_report.parquet"
@@ -36,9 +39,11 @@ class SnapshotSummary(BaseModel):
     files_seen: int
     files_parsed: int
     files_failed: int
+    files_superseded: int = 0
     parsed_company_years: int
     clean_company_years: int
     excluded_company_years: int
+    duplicate_company_years: int = 0
     issues: int
 
 
@@ -46,7 +51,8 @@ def build_snapshot(input_dir: str | Path, out_dir: str | Path) -> SnapshotSummar
     """Parse, validate and normalise every filing in `input_dir`; write Parquet to `out_dir`."""
     input_dir, out_dir = Path(input_dir), Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    filings, failures = parse_directory(input_dir)
+    parsed, failures = parse_directory(input_dir)
+    filings, superseded = select_latest(parsed)
 
     rows: list[CleanCompanyYear] = []
     issue_rows: list[dict[str, Any]] = []
@@ -62,30 +68,109 @@ def build_snapshot(input_dir: str | Path, out_dir: str | Path) -> SnapshotSummar
             }
             for issue in issues
         )
+    rows, duplicates = dedupe_company_years(rows)
+    kept = {(r.source_file, r.fiscal_year) for r in rows}
+    issue_rows = [i for i in issue_rows if (i["source_file"], i["fiscal_year"]) in kept]
 
     companies = pd.DataFrame([_company_record(r) for r in rows])
     validation = pd.DataFrame(issue_rows, columns=_ISSUE_COLUMNS)
-    excluded = _excluded_frame(rows, failures)
+    excluded = _excluded_frame(rows, failures, superseded, duplicates)
 
     companies.to_parquet(out_dir / COMPANIES, index=False)
     validation.to_parquet(out_dir / VALIDATION, index=False)
     excluded.to_parquet(out_dir / EXCLUDED, index=False)
 
     summary = SnapshotSummary(
-        files_seen=len(filings) + len(failures),
-        files_parsed=len(filings),
+        files_seen=len(parsed) + len(failures),
+        files_parsed=len(parsed),
         files_failed=len(failures),
+        files_superseded=len(superseded),
         parsed_company_years=len(rows),
         clean_company_years=sum(r.quality_flag != "excluded" for r in rows),
         excluded_company_years=sum(r.quality_flag == "excluded" for r in rows),
+        duplicate_company_years=len(duplicates),
         issues=len(issue_rows),
     )
     manifest = {
         "inputs": {p.name: _sha256(p) for p in sorted(input_dir.glob("*.xml"))},
+        "superseded": superseded,
         "summary": summary.model_dump(),
     }
     (out_dir / MANIFEST).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return summary
+
+
+_STAMP = re.compile(r"_(\d{8})_(\d{6,9})\.xml$", re.IGNORECASE)
+
+
+def submission_stamp(source_file: str) -> str:
+    """Sortable submission time from NSE's file name (`..._YYYYMMDD_HHMMSSmmm.xml`), else ''."""
+    match = _STAMP.search(source_file)
+    return f"{match.group(1)}{match.group(2):0<9}" if match else ""
+
+
+def select_latest(filings: list[BrsrFiling]) -> tuple[list[BrsrFiling], dict[str, str]]:
+    """Keep the latest submission per company per reporting year; the rest are `superseded`.
+
+    A company can re-file (revise) its BRSR. The newest submission, by the timestamp NSE puts in
+    the file name, wins. Superseded files are returned with a reason, never silently dropped.
+    """
+    groups: dict[tuple[str, date], list[BrsrFiling]] = {}
+    for filing in filings:
+        groups.setdefault((filing.company_key, filing.fy_current.period_end), []).append(filing)
+    kept: list[BrsrFiling] = []
+    superseded: dict[str, str] = {}
+    for group in groups.values():
+        ordered = sorted(group, key=lambda f: (submission_stamp(f.source_file), f.source_file))
+        winner = ordered[-1]
+        kept.append(winner)
+        for loser in ordered[:-1]:
+            superseded[loser.source_file] = (
+                f"Superseded by {winner.source_file} (later submission for "
+                f"{fy_label(winner.fy_current)})"
+            )
+    kept.sort(key=lambda f: f.source_file)
+    return kept, superseded
+
+
+def dedupe_company_years(
+    rows: list[CleanCompanyYear],
+) -> tuple[list[CleanCompanyYear], list[dict[str, str]]]:
+    """One row per company per fiscal year, and `is_current` only on each company's latest year.
+
+    With several years of filings, a year appears twice: as the reporting year of one filing and
+    as the comparative ("previous year") of the next. The reporting-year figure is kept (it is
+    the primary disclosure); the other is recorded as a duplicate with the reason.
+    """
+    best: dict[tuple[str, date], CleanCompanyYear] = {}
+    duplicates: list[dict[str, str]] = []
+    for row in sorted(rows, key=_row_priority, reverse=True):
+        key = (row.company_key, row.period_end)
+        if key in best:
+            duplicates.append(
+                {
+                    "company_key": row.company_key,
+                    "company_name": row.company_name,
+                    "fiscal_year": row.fiscal_year,
+                    "source_file": row.source_file,
+                    "reason": f"Duplicate company-year; kept {best[key].source_file}",
+                }
+            )
+            continue
+        best[key] = row
+    latest: dict[str, date] = {}
+    for company_key, period_end in best:
+        latest[company_key] = max(latest.get(company_key, period_end), period_end)
+    deduped = [
+        row.model_copy(update={"is_current": row.period_end == latest[row.company_key]})
+        for row in best.values()
+    ]
+    deduped.sort(key=lambda r: (r.source_file, not r.is_current, r.period_end))
+    return deduped, duplicates
+
+
+def _row_priority(row: CleanCompanyYear) -> tuple[bool, str]:
+    return (row.is_current, submission_stamp(row.source_file) or row.source_file)
 
 
 _ISSUE_COLUMNS = [
@@ -110,7 +195,13 @@ def _company_record(row: CleanCompanyYear) -> dict[str, Any]:
     return record
 
 
-def _excluded_frame(rows: list[CleanCompanyYear], failures: dict[str, str]) -> pd.DataFrame:
+def _excluded_frame(
+    rows: list[CleanCompanyYear],
+    failures: dict[str, str],
+    superseded: dict[str, str],
+    duplicates: list[dict[str, str]],
+) -> pd.DataFrame:
+    """Everything left out of the snapshot's usable rows, each with its reason."""
     records: list[dict[str, Any]] = [
         {
             "company_key": r.company_key,
@@ -118,33 +209,34 @@ def _excluded_frame(rows: list[CleanCompanyYear], failures: dict[str, str]) -> p
             "fiscal_year": r.fiscal_year,
             "is_current": r.is_current,
             "source_file": r.source_file,
+            "kind": "excluded",
             "reason": r.exclusion_reason,
         }
         for r in rows
         if r.quality_flag == "excluded"
     ]
+    blank = {"company_key": None, "company_name": None, "fiscal_year": None, "is_current": None}
     records.extend(
-        {
-            "company_key": None,
-            "company_name": None,
-            "fiscal_year": None,
-            "is_current": None,
-            "source_file": name,
-            "reason": f"Failed to parse: {reason}",
-        }
-        for name, reason in failures.items()
+        {**blank, "source_file": name, "kind": "parse_failed", "reason": f"Failed to parse: {why}"}
+        for name, why in failures.items()
     )
-    return pd.DataFrame(
-        records,
-        columns=[
-            "company_key",
-            "company_name",
-            "fiscal_year",
-            "is_current",
-            "source_file",
-            "reason",
-        ],
+    records.extend(
+        {**blank, "source_file": name, "kind": "superseded", "reason": why}
+        for name, why in superseded.items()
     )
+    records.extend({**d, "is_current": False, "kind": "duplicate"} for d in duplicates)
+    return pd.DataFrame(records, columns=_EXCLUDED_COLUMNS)
+
+
+_EXCLUDED_COLUMNS = [
+    "company_key",
+    "company_name",
+    "fiscal_year",
+    "is_current",
+    "source_file",
+    "kind",
+    "reason",
+]
 
 
 def _sha256(path: Path) -> str:
