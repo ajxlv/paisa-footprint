@@ -59,9 +59,18 @@ def test_validation_summary(client: TestClient) -> None:
     assert body["companies"] == 20
     assert body["reporting_scope12"] == 15
     assert body["issues_total"] == 40
+    assert body["issues_problems"] == 14
+    assert body["issues_info"] == 26
+    assert body["companies_with_problems"] == 6
     rules = {r["rule_id"]: r for r in body["rules"]}
-    assert rules["V2"]["companies"] == 2
+    # Run 2: Gujarat Themis FY26 and Everest Kanto are corrected (V2-fix); Gujarat Themis FY25
+    # cannot be, so V2 itself still fires once.
+    assert rules["V2"]["companies"] == 1
+    assert rules["V2-fix"]["companies"] == 2
+    assert rules["V2"]["issues"] + rules["V2-fix"]["issues"] == 4
     assert rules["V10"]["issues"] == 0
+    assert (rules["V1"]["problems"], rules["V1"]["info"]) == (0, 20)
+    assert (rules["V3"]["problems"], rules["V3"]["info"]) == (8, 0)
     assert all(r["example"] for r in body["rules"])
     assert len([e for e in body["excluded"] if e["is_current"]]) == 5
 
@@ -123,3 +132,47 @@ def test_missing_snapshot_gives_503(tmp_path: Path) -> None:
     response = empty.get("/companies")
     assert response.status_code == 503
     assert "pf build-snapshot" in response.json()["detail"]
+
+
+def test_funds_empty_state_without_rankings(client: TestClient) -> None:
+    body = client.get("/funds").json()
+    assert body["available"] is False
+    assert body["funds"] == []
+    assert client.get("/funds/anything").status_code == 404
+
+
+def test_demo_funds_are_illustrative_and_computed(client: TestClient) -> None:
+    funds = {f["scheme_name"]: f for f in client.get("/demo/funds").json()}
+    assert set(funds) == {
+        "Illustrative Large Cap Fund",
+        "Illustrative Mid Cap Fund",
+        "Illustrative Flexi Cap Fund",
+    }
+    assert all(f["illustrative"] and f["contains_illustrative_inputs"] for f in funds.values())
+    assert funds["Illustrative Flexi Cap Fund"]["status"] == "insufficient coverage"
+    assert funds["Illustrative Large Cap Fund"]["rank"] == 1
+    key = funds["Illustrative Mid Cap Fund"]["fund_key"]
+    detail = client.get(f"/demo/funds/{key}").json()
+    assert {i["rule_id"] for i in detail["issues"]} == {"V8", "V8-dup"}
+    assert client.get("/demo/funds/nope").status_code == 404
+
+
+def test_real_funds_never_include_illustrative_ones(tmp_path: Path) -> None:
+    """Even if illustrative rankings end up in a snapshot, /funds must not serve them."""
+    from pf_core.funds.ingest import rank_snapshot_funds, write_rankings
+    from tests.test_funds import parse_amc_dir_from_workbook
+
+    snap = tmp_path / "snap"
+    build_snapshot(BRSR_DIR, snap)
+    portfolios, issues, _ = parse_amc_dir_from_workbook()
+    from pf_core.pcaf.inputs import load_evic_csv
+
+    write_rankings(
+        rank_snapshot_funds(
+            snap, load_evic_csv(SYNTHETIC_DIR / "illustrative_evic.csv"), portfolios, issues
+        ),
+        snap,
+    )
+    client = TestClient(create_app(snapshot_dir=snap, demo_dir=SYNTHETIC_DIR, docs_dir=DOCS))
+    body = client.get("/funds").json()
+    assert body == {"available": False, "snapshot_dir": str(snap), "funds": []}

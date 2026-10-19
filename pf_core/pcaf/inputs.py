@@ -4,6 +4,7 @@ Kept apart from `engine.py` so the engine stays free of I/O. CSV files may start
 comment lines (the synthetic fixtures use them for their "illustrative" warning).
 """
 
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -94,9 +95,12 @@ def _emissions(row: dict[str, Any], error_fields: list[str] | None) -> CompanyEm
         company_name=str(row["company_name"]),
         scope1_t=row["scope1_t"],
         scope2_t=row["scope2_t"],
-        revenue_inr=row["revenue_inr"],
+        revenue_inr=row["revenue_inr_resolved"],
+        revenue_corrected=bool(row["revenue_corrected"]),
+        revenue_resolution=str(row["revenue_resolution"]),
         assured=row["assured"],
         fiscal_year=str(row["fiscal_year"]),
+        period_end=date.fromisoformat(str(row["period_end"])) if row.get("period_end") else None,
         quality_flag=row["quality_flag"],
         error_fields=error_fields or [],
         issues=list(row["issues"]),

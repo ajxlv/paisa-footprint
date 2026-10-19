@@ -77,6 +77,34 @@ def test_worked_example_portfolio_a(snapshot: Snapshot) -> None:
     assert result.contains_illustrative_inputs is True
 
 
+# Hand-derived in docs/worked-example-b.md (run 2, with the V2-fix revenue correction).
+WORKED_B = {
+    "financed_emissions_t": 45.228640153333333,
+    "carbon_footprint_t_per_crore": 5.9511368622807018,
+    "waci_t_per_crore_revenue": 15.331996449270470,
+    "pcaf_data_quality": 51 / 38,
+    "waci_data_quality": 51 / 38,
+    "themis_intensity": 18716.91 / 165.82,
+}
+
+
+def test_worked_example_portfolio_b(snapshot: Snapshot) -> None:
+    result = run(snapshot, "portfolio_synthetic_b.csv")
+    rel = 1e-9
+    for key in (
+        "financed_emissions_t",
+        "carbon_footprint_t_per_crore",
+        "waci_t_per_crore_revenue",
+        "pcaf_data_quality",
+        "waci_data_quality",
+    ):
+        assert getattr(result, key) == pytest.approx(WORKED_B[key], rel=rel), key
+    themis = next(h for h in result.holdings if h.company_key == "INE942C01045")
+    assert themis.intensity_t_per_crore_revenue == pytest.approx(
+        WORKED_B["themis_intensity"], rel=rel
+    )
+
+
 def test_portfolio_b_exclusions(snapshot: Snapshot) -> None:
     result = run(snapshot, "portfolio_synthetic_b.csv")
     reasons = {u.isin_or_symbol: u.reason for u in result.uncovered}
@@ -84,12 +112,14 @@ def test_portfolio_b_exclusions(snapshot: Snapshot) -> None:
     assert "V9" in reasons["RAJESHEXPO"]
     assert "V7" in reasons["INE000000000"]
     themis = next(h for h in result.holdings if h.company_key == "INE942C01045")
-    assert themis.in_waci is False
-    assert "V2" in (themis.waci_exclusion_reason or "")
+    # Run 2: revenue corrected by V2-fix, so Gujarat Themis is now in WACI, flagged.
+    assert themis.in_waci is True
+    assert themis.revenue_corrected is True
+    assert themis.waci_data_quality == 2
     assert result.total_value_inr == 90_000_000
     assert result.covered_value_inr == 76_000_000
     assert result.coverage_pct == pytest.approx(76 / 90 * 100)
-    assert result.waci_value_inr == 70_000_000  # covered minus Gujarat Themis
+    assert result.waci_value_inr == 76_000_000  # run 2: every covered holding is in WACI
 
 
 def test_portfolio_c_single_holding(snapshot: Snapshot) -> None:
@@ -214,3 +244,75 @@ def _fin(key: str, evic: float) -> CompanyFinancials:
     return CompanyFinancials(
         company_key=key, evic_inr=evic, evic_source="synthetic", evic_is_illustrative=True
     )
+
+
+def test_changing_one_evic_changes_only_that_holding(snapshot: Snapshot) -> None:
+    """Mutation check: bump NMDC's EVIC; every other holding's attribution must stay identical."""
+    holdings = load_portfolio_csv(
+        SYNTHETIC_DIR / "portfolio_synthetic_a.csv", company_index(snapshot)
+    )
+    emissions, evic = emissions_from_snapshot(snapshot), load_evic_csv(EVIC_CSV)
+    base = compute_portfolio(holdings, emissions, evic)
+    nmdc = "INE584A01023"
+    bumped = {**evic, nmdc: evic[nmdc].model_copy(update={"evic_inr": evic[nmdc].evic_inr * 2})}
+    changed = compute_portfolio(holdings, emissions, bumped)
+    before = {h.company_key: h.attribution for h in base.holdings}
+    after = {h.company_key: h.attribution for h in changed.holdings}
+    assert after[nmdc] == pytest.approx(before[nmdc] / 2)
+    assert {k: v for k, v in after.items() if k != nmdc} == {
+        k: v for k, v in before.items() if k != nmdc
+    }
+    nmdc_before = next(h.financed_emissions_t for h in base.holdings if h.company_key == nmdc)
+    assert changed.financed_emissions_t == pytest.approx(
+        base.financed_emissions_t - nmdc_before / 2
+    )
+
+
+def test_removing_an_uncovered_holding_leaves_financed_emissions_unchanged(
+    snapshot: Snapshot,
+) -> None:
+    holdings = load_portfolio_csv(
+        SYNTHETIC_DIR / "portfolio_synthetic_b.csv", company_index(snapshot)
+    )
+    emissions, evic = emissions_from_snapshot(snapshot), load_evic_csv(EVIC_CSV)
+    base = compute_portfolio(holdings, emissions, evic)
+    for dropped in ("RAJESHEXPO", "INE000000000"):
+        trimmed = compute_portfolio(
+            [h for h in holdings if h.isin_or_symbol != dropped], emissions, evic
+        )
+        assert trimmed.financed_emissions_t == base.financed_emissions_t
+        assert trimmed.carbon_footprint_t_per_crore == base.carbon_footprint_t_per_crore
+        assert trimmed.coverage_pct > base.coverage_pct  # only coverage improves
+
+
+@pytest.mark.parametrize(
+    ("change", "reason", "waci"),
+    [
+        ({"__missing__": True}, "No BRSR emissions data", False),
+        ({"error_fields": ["scope1"]}, "Error-severity issue on Scope 1/2", False),
+        ({"scope2_t": None}, "Scope 1 or Scope 2 not reported", False),
+        ({"revenue_inr": None}, None, False),
+        ({"error_fields": ["revenue_from_operations_inr"]}, None, False),
+    ],
+)
+def test_every_exclusion_branch_is_reported(
+    change: dict[str, object], reason: str | None, waci: bool
+) -> None:
+    emissions = {"X": _emissions("X")}
+    if change.pop("__missing__", False):
+        emissions = {}
+    else:
+        emissions["X"] = emissions["X"].model_copy(update=change)
+    result = compute_portfolio([_holding("X", 1e7)], emissions, {"X": _fin("X", 1e12)})
+    if reason is None:  # covered for financed emissions, but not usable for WACI
+        assert result.coverage_pct == 100
+        assert result.holdings[0].in_waci is waci
+        assert result.waci_t_per_crore_revenue is None
+    else:
+        assert reason in result.uncovered[0].reason
+        assert result.waci_t_per_crore_revenue is None
+
+
+def test_attribution_rejects_non_positive_evic() -> None:
+    with pytest.raises(AttributionError):
+        attribution(1e7, 0)

@@ -58,6 +58,10 @@ _WANTED = (
 )
 
 
+# Downloaded XBRL is untrusted input: never resolve external entities or touch the network.
+SAFE_PARSER = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
+
+
 class BrsrParseError(ValueError):
     """The file is not a usable BRSR instance (e.g. no company name or no reporting period)."""
 
@@ -83,7 +87,7 @@ class _Fact:
 def parse_file(path: str | Path) -> BrsrFiling:
     """Parse one BRSR XBRL file from disk."""
     path = Path(path)
-    root = etree.parse(str(path)).getroot()
+    root = etree.parse(str(path), parser=SAFE_PARSER).getroot()
     return parse_tree(root, source_file=path.name)
 
 

@@ -38,11 +38,28 @@ def test_v1_mtco2e_titan_is_info(by_name: dict[str, BrsrFiling]) -> None:
 def test_v1_counts(filings: list[BrsrFiling]) -> None:
     # 10 of 15 reporting filings tag emissions MtCO2e (data-check-results.md, finding 1).
     assert len(companies_hit(filings, "V1")) == 10
-    # The implausible-intensity warning fires only where revenue is mis-scaled.
-    assert companies_hit(filings, "V1", "warning") == {
-        "GUJARAT THEMIS BIOSYN LIMITED",
-        "Everest Kanto Cylinder Limited",
-    }
+    # Run 2: the implausible-intensity check is skipped when revenue fails V2, because the
+    # implied intensity is then wrong by ~1e7 and only repeats V2. No fixture with trusted revenue
+    # crosses the threshold, so every V1 issue on the fixtures is informational.
+    assert companies_hit(filings, "V1", "warning") == set()
+    assert companies_hit(filings, "V1", "info") == companies_hit(filings, "V1")
+
+
+def test_v1_warns_when_trusted_revenue_implies_megatonnes() -> None:
+    # 1,000,000 t on ₹100 crore of revenue = 10,000 t/₹ cr: plausible, stays info.
+    plausible = _constructed(scope1=500_000, scope2=500_000, revenue=1e9, unit="Non-SI:MtCO2e")
+    assert {i.severity for i in VALIDATORS["V1"](plausible)} == {"info"}
+    # 10,000,000 t on ₹100 crore = 100,000 t/₹ cr: above 50,000, so the unit is doubtful.
+    implausible = _constructed(
+        scope1=5_000_000, scope2=5_000_000, revenue=1e9, unit="Non-SI:MtCO2e"
+    )
+    assert "warning" in {i.severity for i in VALIDATORS["V1"](implausible)}
+
+
+def test_v1_skips_intensity_check_on_untrusted_revenue() -> None:
+    filing = _constructed(scope1=5_000_000, scope2=5_000_000, revenue=165.82, unit="Non-SI:MtCO2e")
+    assert {i.severity for i in VALIDATORS["V1"](filing)} == {"info"}
+    assert VALIDATORS["V2"](filing)  # the revenue problem is still reported, once, by V2
 
 
 def test_v2_revenue_scale(filings: list[BrsrFiling]) -> None:
@@ -50,9 +67,23 @@ def test_v2_revenue_scale(filings: list[BrsrFiling]) -> None:
         "GUJARAT THEMIS BIOSYN LIMITED",
         "Everest Kanto Cylinder Limited",
     }
-    issue = VALIDATORS["V2"](next(f for f in filings if f.company_name.startswith("GUJARAT")))[0]
-    assert issue.severity == "error"
-    assert issue.observed_value == "165.82"
+    # Run 2: where the other revenue field pins down the scale, V2 becomes a V2-fix warning.
+    themis = next(f for f in filings if f.company_name.startswith("GUJARAT"))
+    current, previous = VALIDATORS["V2"](themis)
+    assert (current.rule_id, current.severity, current.fiscal_year) == (
+        "V2-fix",
+        "warning",
+        "FY2025-26",
+    )
+    assert current.observed_value == "165.82"
+    assert "interpreted as ₹ crore" in current.message
+    # FY2024-25 (153.23 vs 2,483,819,619, ratio 1.62e7) has no clean fit, so it stays an error.
+    assert (previous.rule_id, previous.severity) == ("V2", "error")
+    assert previous.observed_value == "153.23"
+    everest = {
+        i.rule_id for i in VALIDATORS["V2"](next(f for f in filings if "Everest" in f.company_name))
+    }
+    assert everest == {"V2-fix"}
 
 
 def test_v3_revenue_mismatch(filings: list[BrsrFiling], by_name: dict[str, BrsrFiling]) -> None:
@@ -125,10 +156,28 @@ def test_normalise_v4_zero_becomes_none(by_name: dict[str, BrsrFiling]) -> None:
 
 
 def test_normalise_v2_is_flagged_not_fixed(by_name: dict[str, BrsrFiling]) -> None:
-    row = normalise(by_name["GUJARAT THEMIS BIOSYN LIMITED"])[0]
-    assert row.revenue_inr == 165.82
+    # Run 2: the unresolvable year (FY2024-25) is still flagged and never rescaled.
+    row = normalise(by_name["GUJARAT THEMIS BIOSYN LIMITED"])[1]
+    assert row.revenue_inr == 153.23
+    assert row.revenue_inr_resolved == 153.23
+    assert row.revenue_resolution == "unresolved"
     assert row.intensity_t_per_crore is None
     assert row.quality_flag == "review"
+
+
+def test_normalise_v2_fix_corrects_and_flags(by_name: dict[str, BrsrFiling]) -> None:
+    row = normalise(by_name["GUJARAT THEMIS BIOSYN LIMITED"])[0]
+    assert row.revenue_inr == 165.82  # the filed value is kept
+    assert row.revenue_inr_resolved == pytest.approx(165.82e7)
+    assert row.revenue_resolution == "inferred_crore"
+    assert row.revenue_corrected is True
+    assert row.intensity_t_per_crore == pytest.approx(18716.91 / 165.82)
+    assert row.quality_flag == "review"  # still flagged: V2-fix and V3 are warnings
+    prov = row.provenance["revenue_from_operations_inr"]
+    assert prov.corrected is True
+    assert prov.raw_value == "165.82"
+    assert prov.value_used == pytest.approx(165.82e7)
+    assert "1,658,227,981" in prov.transformation
 
 
 def test_normalise_v9_excluded(by_name: dict[str, BrsrFiling]) -> None:

@@ -1,11 +1,12 @@
+import shutil
 from pathlib import Path
 
 import duckdb
 import pandas as pd
 import pytest
 
-from pf_core.snapshot import build_snapshot, coverage_stats, load_snapshot
-from tests.conftest import BRSR_DIR
+from pf_core.snapshot import build_snapshot, coverage_stats, load_snapshot, submission_stamp
+from tests.conftest import BRSR_DIR, BRSR_FILES
 
 SQL = Path(__file__).parent.parent / "sql" / "coverage.sql"
 
@@ -59,7 +60,20 @@ def test_coverage_stats(snapshot_dir: Path) -> None:
     assert stats["reporting_scope12"] == 15
     assert stats["pct_reporting_scope12"] == 75.0
     assert stats["assured"] == 6
-    assert stats["issues_per_rule"]["V2"] == 4
+    assert stats["issues_per_rule"]["V2"] + stats["issues_per_rule"]["V2-fix"] == 4
+    # Run 2 headline: problems (error/warning) are counted apart from informational notes.
+    assert stats["issues_problems"] == 14  # V2 x4, V3 x8, V4 x1, V5 x1
+    assert stats["issues_info"] == 26  # V1 x20, V6 x1, V9 x5
+    assert stats["companies_with_problems"] == 6
+    assert stats["issues_problems"] + stats["issues_info"] == stats["issues_total"] == 40
+    assert {k: v for k, v in stats["problems_per_rule"].items() if v} == {
+        "V2": 1,
+        "V2-fix": 3,
+        "V3": 8,
+        "V4": 1,
+        "V5": 1,
+    }
+    assert {k: v for k, v in stats["info_per_rule"].items() if v} == {"V1": 20, "V6": 1, "V9": 5}
     assert stats["companies_per_rule"]["V9"] == 5
 
 
@@ -80,3 +94,79 @@ def test_coverage_sql_matches_python(snapshot_dir: Path) -> None:
 
 def _only_comments(statement: str) -> bool:
     return all(line.strip().startswith("--") or not line.strip() for line in statement.splitlines())
+
+
+NMDC_FILE = next(p for p in BRSR_FILES if "BRSR_2729_" in p.name)
+
+
+def test_revised_filing_supersedes_earlier_one(tmp_path: Path) -> None:
+    """Two submissions for the same company-year: the later (by NSE's file-name stamp) wins."""
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    shutil.copy(NMDC_FILE, raw / "BRSR_2729_WebXMLFile_20260916_165325349.xml")
+    shutil.copy(NMDC_FILE, raw / "BRSR_2729_WebXMLFile_20261001_090000000.xml")
+    summary = build_snapshot(raw, tmp_path / "snap")
+    assert summary.files_parsed == 2
+    assert summary.files_superseded == 1
+    assert summary.parsed_company_years == 2
+    excluded = pd.read_parquet(tmp_path / "snap" / "excluded.parquet")
+    superseded = excluded[excluded.kind == "superseded"]
+    assert list(superseded.source_file) == ["BRSR_2729_WebXMLFile_20260916_165325349.xml"]
+    assert "BRSR_2729_WebXMLFile_20261001_090000000.xml" in superseded.reason.iloc[0]
+
+
+def test_overlapping_years_keep_reporting_year_figure(tmp_path: Path) -> None:
+    """A later year's filing repeats this year as its comparative; the reporting-year figure wins.
+
+    The FY2026-27 file is built in the test by shifting NMDC's dates forward one year. It is a
+    constructed input in a temporary directory, never a fixture, and is deleted with tmp_path.
+    """
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    shutil.copy(NMDC_FILE, raw / NMDC_FILE.name)
+    text = NMDC_FILE.read_text(encoding="utf-8")
+    for old, placeholder in (
+        ("2026-03-31", "@A"),
+        ("2025-04-01", "@B"),
+        ("2025-03-31", "@C"),
+        ("2024-04-01", "@D"),
+    ):
+        text = text.replace(old, placeholder)
+    for placeholder, new in (
+        ("@A", "2027-03-31"),
+        ("@B", "2026-04-01"),
+        ("@C", "2026-03-31"),
+        ("@D", "2025-04-01"),
+    ):
+        text = text.replace(placeholder, new)
+    (raw / "BRSR_9999_WebXMLFile_20270915_100000000.xml").write_text(text, encoding="utf-8")
+
+    summary = build_snapshot(raw, tmp_path / "snap")
+    assert summary.duplicate_company_years == 1
+    snap = load_snapshot(tmp_path / "snap")
+    nmdc = [c for c in snap.companies if c["company_key"] == "INE584A01023"]
+    assert sorted(c["fiscal_year"] for c in nmdc) == ["FY2024-25", "FY2025-26", "FY2026-27"]
+    assert [c["fiscal_year"] for c in nmdc if c["is_current"]] == ["FY2026-27"]
+    fy26 = next(c for c in nmdc if c["fiscal_year"] == "FY2025-26")
+    assert fy26["source_file"] == NMDC_FILE.name  # its own reporting year, not the comparative
+    excluded = pd.read_parquet(tmp_path / "snap" / "excluded.parquet")
+    assert list(excluded[excluded.kind == "duplicate"].fiscal_year) == ["FY2025-26"]
+
+
+def test_submission_stamp_parsing() -> None:
+    assert submission_stamp("BRSR_1_WebXMLFile_20260916_165325349.xml") == "20260916165325349"
+    assert submission_stamp("odd-name.xml") == ""
+
+
+def test_unparseable_file_is_reported_not_dropped(tmp_path: Path) -> None:
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    shutil.copy(NMDC_FILE, raw / NMDC_FILE.name)
+    (raw / "BRSR_0_WebXMLFile_20260101_000000000.xml").write_text("<html>NSE error page</html>")
+    (raw / "BRSR_1_WebXMLFile_20260101_000000000.xml").write_text("not xml at all <<<")
+    summary = build_snapshot(raw, tmp_path / "snap")
+    assert (summary.files_parsed, summary.files_failed) == (1, 2)
+    excluded = pd.read_parquet(tmp_path / "snap" / "excluded.parquet")
+    failed = excluded[excluded.kind == "parse_failed"]
+    assert len(failed) == 2
+    assert all(r.startswith("Failed to parse") for r in failed.reason)

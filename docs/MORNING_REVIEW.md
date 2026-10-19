@@ -79,10 +79,12 @@ Hypothesis found one real bug during the build: V5 divided by an underflowed rat
 
 Issues are counted per fiscal year (each filing has two years), so a company can contribute two issues to one rule.
 
+> **Corrected in run 2:** "40 issues" is not "40 problems". 26 of them are informational notes (V1 MtCO2e ×20, V6 ×1, V9 ×5). The real problems are **14 warnings/errors in 6 companies**. The 4 V1 warnings below were removed in run 2: they only repeated V2's revenue finding. See [RUN2_REVIEW.md](RUN2_REVIEW.md).
+
 | Rule | Severity | Companies | Issues | Which companies |
 |---|---|---|---|---|
 | V1 MtCO2e read as tonnes | info | 8 | 16 | Accelya, Cyient DLM, Ingersoll-Rand, Prince Pipes, PTC Industries, Themis Medicare, Titan, Varroc |
-| V1 (implied intensity > 50,000 t/₹ cr) | warning | 2 | 4 | Gujarat Themis, Everest Kanto |
+| V1 (implied intensity > 50,000 t/₹ cr) | warning | 2 | 4 | Gujarat Themis, Everest Kanto (run 1 only; in run 2 these are info, because the revenue fails V2) |
 | V2 revenue < ₹10 lakh | error | 2 | 4 | Gujarat Themis, Everest Kanto |
 | V3 revenue fields differ > 2× | warning | 4 | 8 | Everest Kanto, Gujarat Themis, Ingersoll-Rand, HMT |
 | V4 zero year next to non-zero | warning | 1 | 1 | Gulshan Polyols (FY2024-25) |
@@ -90,7 +92,7 @@ Issues are counted per fiscal year (each filing has two years), so a company can
 | V6 FY not ending 31 March | info | 1 | 1 | Accelya (June year end) |
 | V9 GHG "not applicable" | info | 5 | 5 | Rajesh Exports, Sirca Paints, Ashiana Housing, Vishnu Prakash R Punglia, HMT |
 | V10 intensity mismatch > 1% | warning | 0 | 0 | none (tested with a constructed filing) |
-| **Total** | | | **40** | |
+| **Total** | | | **40** = 14 problems + 26 informational notes (run-2 count) | |
 
 V1 in total: **10 companies** (matches the data check's "10 of 15 tag MtCO2e").
 

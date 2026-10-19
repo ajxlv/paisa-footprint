@@ -4,7 +4,7 @@ import { api, type CompanyYear } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { formatINR, formatNumber, formatSig } from '../lib/format';
 import { RULE_TEXT, TRANSFORM_HINT } from '../lib/rules';
-import { useChartColors } from '../lib/theme';
+import { useChartColors } from '../lib/themeContext';
 import { ErrorBox, Loading, QualityBadge, SeverityBadge, StatTile } from '../components/ui';
 
 const FIELD_LABELS: Record<string, string> = {
@@ -96,7 +96,7 @@ function YearsSection({ years }: { years: CompanyYear[] }) {
     <section aria-labelledby="years-h" className="grid gap-6 lg:grid-cols-2">
       <div className="min-w-0">
         <h2 id="years-h" className="mb-3 text-lg font-semibold">Both filed years</h2>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Both filed years, scrollable">
           <table className="table-base">
             <thead>
               <tr>
@@ -116,7 +116,10 @@ function YearsSection({ years }: { years: CompanyYear[] }) {
                   </th>
                   <td className="num">{formatNumber(y.scope1_t)}</td>
                   <td className="num">{formatNumber(y.scope2_t)}</td>
-                  <td className="num">{formatINR(y.revenue_inr)}</td>
+                  <td className="num">
+                    {formatINR(y.revenue_inr_resolved)}
+                    {y.revenue_corrected && <CorrectedChip />}
+                  </td>
                   <td className="num">{formatSig(y.intensity_t_per_crore)}</td>
                 </tr>
               ))}
@@ -154,16 +157,35 @@ function YearsSection({ years }: { years: CompanyYear[] }) {
   );
 }
 
+function CorrectedChip() {
+  return (
+    <span
+      className="ml-1.5 inline-block rounded bg-amber-100 px-1.5 py-0.5 align-middle font-sans text-[11px] font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200"
+      title="Scale corrected by rule V2-fix; see Transformation"
+    >
+      Corrected
+    </span>
+  );
+}
+
 function ProvenancePanel({ years }: { years: CompanyYear[] }) {
   return (
     <section aria-labelledby="prov-h">
       <h2 id="prov-h" className="text-lg font-semibold">Where this number comes from</h2>
       <p className="mb-4 mt-1 text-sm text-stone-600 dark:text-stone-400">
-        Each figure as filed in the XBRL, with the element, context, period, raw value and unit. {TRANSFORM_HINT}
+        Each figure as filed in the XBRL, with the element, context, period, raw value and unit, and the value we
+        actually use. {TRANSFORM_HINT} An amber <span className="font-medium">Corrected</span> chip marks a
+        revenue figure rescaled by rule V2-fix.
       </p>
       <div className="space-y-6">
         {years.map((y) => (
-          <div key={y.fiscal_year} className="overflow-x-auto rounded-lg border border-stone-200 dark:border-stone-800">
+          <div
+            key={y.fiscal_year}
+            className="overflow-x-auto rounded-lg border border-stone-200 dark:border-stone-800"
+            tabIndex={0}
+            role="region"
+            aria-label={`Provenance for ${y.fiscal_year}, scrollable`}
+          >
             <table className="table-base min-w-[880px]">
               <caption className="px-3 pt-3 text-left text-sm font-medium">{y.fiscal_year}</caption>
               <thead>
@@ -173,6 +195,7 @@ function ProvenancePanel({ years }: { years: CompanyYear[] }) {
                   <th scope="col">Context · period</th>
                   <th scope="col" className="num">Raw value</th>
                   <th scope="col">Raw unit</th>
+                  <th scope="col" className="num">Value used</th>
                   <th scope="col">Transformation</th>
                 </tr>
               </thead>
@@ -180,18 +203,22 @@ function ProvenancePanel({ years }: { years: CompanyYear[] }) {
                 {Object.entries(y.provenance).map(([field, p]) => (
                   <tr key={field}>
                     <th scope="row" className="text-left font-normal">{FIELD_LABELS[field] ?? field}</th>
-                    <td className="font-mono text-xs">{p.element}</td>
+                    <td className="max-w-[15rem] break-all font-mono text-xs">{p.element}</td>
                     <td className="whitespace-nowrap text-xs">
                       {p.context_ref}
                       <span className="block text-stone-500">{p.period_start ? `${p.period_start} to ` : ''}{p.period_end}</span>
                     </td>
                     <td className="num font-mono text-xs">{p.raw_value}</td>
                     <td className="font-mono text-xs">{p.unit_raw ?? '–'}</td>
+                    <td className="num font-mono text-xs">
+                      {p.value_used === null || p.value_used === undefined ? '–' : formatNumber(p.value_used, 10)}
+                      {p.corrected && <CorrectedChip />}
+                    </td>
                     <td className="text-xs">{p.transformation}</td>
                   </tr>
                 ))}
                 {Object.keys(y.provenance).length === 0 && (
-                  <tr><td colSpan={6} className="text-sm text-stone-500">No emissions or revenue facts filed for this year.</td></tr>
+                  <tr><td colSpan={7} className="text-sm text-stone-500">No emissions or revenue facts filed for this year.</td></tr>
                 )}
               </tbody>
             </table>

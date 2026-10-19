@@ -28,6 +28,8 @@ export interface ValueProvenance {
   unit_raw: string | null;
   raw_value: string;
   transformation: string;
+  value_used: number | null;
+  corrected: boolean;
 }
 
 export interface CompanyYear {
@@ -39,6 +41,11 @@ export interface CompanyYear {
   scope2_t: number | null;
   revenue_inr: number | null;
   total_revenue_inr: number | null;
+  revenue_inr_resolved: number | null;
+  total_revenue_inr_resolved: number | null;
+  revenue_resolution: 'as_filed' | 'inferred_crore' | 'inferred_lakh' | 'unresolved';
+  revenue_note: string;
+  revenue_corrected: boolean;
   intensity_reported_per_inr: number | null;
   intensity_t_per_crore: number | null;
   assured: boolean | null;
@@ -71,6 +78,8 @@ export interface RuleSummary {
   rule_id: string;
   description: string;
   issues: number;
+  problems: number;
+  info: number;
   companies: number;
   example: string;
 }
@@ -82,6 +91,9 @@ export interface ValidationSummary {
   assured: number;
   pct_assured_of_reporting: number | null;
   excluded_companies: number;
+  issues_problems: number;
+  issues_info: number;
+  companies_with_problems: number;
   issues_total: number;
   quality_flags: Record<QualityFlag, number>;
   rules: RuleSummary[];
@@ -125,7 +137,9 @@ export interface HoldingResult {
   intensity_t_per_crore_revenue: number | null;
   in_waci: boolean;
   waci_exclusion_reason: string | null;
+  revenue_corrected: boolean;
   pcaf_data_quality: number;
+  waci_data_quality: number | null;
   formula: string;
 }
 
@@ -146,6 +160,7 @@ export interface PortfolioResult {
   waci_value_inr: number;
   waci_coverage_pct: number;
   pcaf_data_quality: number | null;
+  waci_data_quality: number | null;
   holdings: HoldingResult[];
   uncovered: UncoveredHolding[];
   contains_illustrative_inputs: boolean;
@@ -178,4 +193,47 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ holdings, evic }),
     }),
+};
+
+export interface FundIssue {
+  fund_key: string;
+  rule_id: string;
+  severity: string;
+  field: string;
+  message: string;
+}
+
+export interface FundResult {
+  fund_key: string;
+  amc: string;
+  scheme_name: string;
+  as_of_date: string | null;
+  source_file: string;
+  illustrative: boolean;
+  status: 'ranked' | 'insufficient coverage' | 'no equity holdings';
+  rank: number | null;
+  equity_value_inr: number;
+  non_equity_value_inr: number;
+  coverage_pct: number;
+  carbon_footprint_t_per_crore: number | null;
+  waci_t_per_crore_revenue: number | null;
+  financed_emissions_t: number;
+  pcaf_data_quality: number | null;
+  contains_illustrative_inputs: boolean;
+  top_contributors: HoldingResult[];
+  uncovered: UncoveredHolding[];
+  issues: FundIssue[];
+}
+
+export interface FundsResponse {
+  available: boolean;
+  snapshot_dir: string;
+  funds: FundResult[];
+}
+
+export const fundsApi = {
+  funds: () => request<FundsResponse>('/funds'),
+  fund: (key: string) => request<FundResult>(`/funds/${encodeURIComponent(key)}`),
+  demoFunds: () => request<FundResult[]>('/demo/funds'),
+  demoFund: (key: string) => request<FundResult>(`/demo/funds/${encodeURIComponent(key)}`),
 };

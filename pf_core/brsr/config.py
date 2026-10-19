@@ -42,3 +42,12 @@ V10_REL_TOLERANCE: Final[float] = 0.01
 # so a difference below half of the 10th decimal place is rounding, not error. This matters for
 # near-zero emitters: Accelya's true intensity is 1.5e-11, which rounds to a reported 0.
 V10_ABS_TOLERANCE: Final[float] = 5e-11
+
+# V2-fix: two revenue figures "agree" if they differ by at most 15% of the larger one. Total revenue
+# is operating revenue plus other income, which for listed companies is usually a few percent and
+# rarely above 15%; a wider band would start accepting genuinely different numbers as "the same".
+REVENUE_AGREEMENT_TOLERANCE: Final[float] = 0.15
+
+# V2-fix: the only rescalings tried. Indian filers type rupee fields in lakh (1e5) or crore (1e7);
+# nothing else is a common confusion, and allowing more factors would make false matches likelier.
+REVENUE_SCALE_FACTORS: Final[dict[str, float]] = {"lakh": 1e5, "crore": 1e7}

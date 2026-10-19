@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { CompanySummary } from '../lib/api';
 import { formatNumber } from '../lib/format';
-import { useChartColors } from '../lib/theme';
+import { useChartColors } from '../lib/themeContext';
 
 /**
  * Scope 1 + 2 per reporting company. Linear scale stacks S1 and S2; a log axis cannot stack
